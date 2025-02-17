@@ -233,7 +233,7 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
         if deconvolution:
             Thread(
                 target=profiled_run_deconvolution,
-                args=(bg_output_queue, deconv_output_queue, len(batch), 12), #last argument is deconv batch_size has to match with image batch size 
+                args=(bg_output_queue, deconv_output_queue, len(batch), 1), #last argument is deconv batch_size has to match with image batch size 
             ).start()
         else:
             deconv_output_queue = bg_output_queue
@@ -341,8 +341,8 @@ def select_directories():
 
 if __name__ == "__main__":
     run_segmenter(
-        "/media/veit/30781fe1-cea5-4503-ae00-1986beb935d2/M181_raw/M181-107-1_CTD-036_00°00S-007°00W_20220504-0756/PNG", #source folder
-        "/home/veit/Data_test/M181_test_results/", #destination folder
+        "/home/fanny/M181_test_set_2", #source folder
+        "/home/fanny/segmentation_output", #destination folder
         True, #deconvolution        
     )
 

@@ -77,7 +77,7 @@ def run_deconvolution(input: Queue, output: Queue, n_imgs: int, batch_size: int 
             # Prepare the image for deconvolution
             # ... [your existing image preprocessing code] ...
             x = cleaned / 255
-            x_t = torch.from_numpy(x).to('cuda')
+            x_t = torch.from_numpy(x).to(device)
             x_t = x_t.unsqueeze(0).unsqueeze(0)
 
             # Accumulate batch

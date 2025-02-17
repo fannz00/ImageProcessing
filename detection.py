@@ -7,6 +7,7 @@ import csv
 from multiprocessing import Queue
 from process_pool import ProcessPool
 from dataclasses import dataclass
+from skimage import measure
 #from tqdm import tqdm
 
 
@@ -62,6 +63,92 @@ def save_crop_data(path, data):
     with open(path, "w", newline="") as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerows(data)
+
+def calculate_regionprops(mask, img):
+    def regionprop2zooprocess(prop):
+        """
+        Calculate zooprocess features from skimage regionprops.
+        Taken from morphocut
+
+        Notes:
+            - date/time specify the time of the sampling, not of the processing.
+        """
+        return {
+            #"label": prop.label,
+            # width of the smallest rectangle enclosing the object
+            "width": prop.bbox[3] - prop.bbox[1],
+            # height of the smallest rectangle enclosing the object
+            "height": prop.bbox[2] - prop.bbox[0],
+            # X coordinates of the top left point of the smallest rectangle enclosing the object
+            "bx": prop.bbox[1],
+            # Y coordinates of the top left point of the smallest rectangle enclosing the object
+            "by": prop.bbox[0],
+            # circularity : (4∗π ∗Area)/Perim^2 a value of 1 indicates a perfect circle, a value approaching 0 indicates an increasingly elongated polygon
+            "circ.": (4 * np.pi * prop.filled_area) / prop.perimeter ** 2,
+            # Surface area of the object excluding holes, in square pixels (=Area*(1-(%area/100))
+            "area_exc": prop.area,
+            # Surface area of the object in square pixels
+            "area_rprops": prop.filled_area,
+            # Percentage of object’s surface area that is comprised of holes, defined as the background grey level
+            "%area": 1 - (prop.area / prop.filled_area),
+            # Primary axis of the best fitting ellipse for the object
+            "major": prop.major_axis_length,
+            # Secondary axis of the best fitting ellipse for the object
+            "minor": prop.minor_axis_length,
+            # Y position of the center of gravity of the object
+            "centroid_y": prop.centroid[0],
+            # X position of the center of gravity of the object
+            "centroid_x": prop.centroid[1],
+            # The area of the smallest polygon within which all points in the objet fit
+            "convex_area": prop.convex_area,
+            # Minimum grey value within the object (0 = black)
+            "min_intensity": prop.intensity_min,
+            # Maximum grey value within the object (255 = white)
+            "max_intensity": prop.intensity_max,
+            # Average grey value within the object ; sum of the grey values of all pixels in the object divided by the number of pixels
+            "mean_intensity": prop.intensity_mean,
+            # Integrated density. The sum of the grey values of the pixels in the object (i.e. = Area*Mean)
+            "intden": prop.filled_area * prop.mean_intensity,
+            # The length of the outside boundary of the object
+            "perim.": prop.perimeter,
+            # major/minor
+            "elongation": np.divide(prop.major_axis_length, prop.minor_axis_length),
+            # max-min
+            "range": prop.max_intensity - prop.min_intensity,
+            # perim/area_exc
+            "perimareaexc": prop.perimeter / prop.area,
+            # perim/major
+            "perimmajor": prop.perimeter / prop.major_axis_length,
+            # (4 ∗ π ∗ Area_exc)/perim 2
+            "circex": np.divide(4 * np.pi * prop.area, prop.perimeter ** 2),
+            # Angle between the primary axis and a line parallel to the x-axis of the image
+            "angle": prop.orientation / np.pi * 180 + 90,
+            # # X coordinate of the top left point of the image
+            # 'xstart': data_object['raw_img']['meta']['xstart'],
+            # # Y coordinate of the top left point of the image
+            # 'ystart': data_object['raw_img']['meta']['ystart'],
+            # Maximum feret diameter, i.e. the longest distance between any two points along the object boundary
+            # 'feret': data_object['raw_img']['meta']['feret'],
+            # feret/area_exc
+            # 'feretareaexc': data_object['raw_img']['meta']['feret'] / property.area,
+            # perim/feret
+            # 'perimferet': property.perimeter / data_object['raw_img']['meta']['feret'],
+            "bounding_box_area": prop.bbox_area,
+            "eccentricity": prop.eccentricity,
+            "equivalent_diameter": prop.equivalent_diameter,
+            "euler_number": prop.euler_number,
+            "extent": prop.extent,
+            "local_centroid_col": prop.local_centroid[1],
+            "local_centroid_row": prop.local_centroid[0],
+            "solidity": prop.solidity,
+        }
+    
+    # Use regionprops on the mask
+    props = measure.regionprops(mask, intensity_image=img)
+
+    region_data = regionprop2zooprocess(props[0])
+
+    return region_data
 
 
 def detect_on_img(input, settings: DetectionSettings, mask: np.ndarray, index=0):
@@ -139,27 +226,41 @@ def detect_on_img(input, settings: DetectionSettings, mask: np.ndarray, index=0)
 
             if areas[i] > settings.min_area_to_save:
                 #mask = np.zeros_like(cleaned, dtype=np.uint8)
-                crop_data.append([c, os.path.basename(raw_crop_fn),mean_raw[0],mean_raw[1],mean,std, areas[i], x, y, w, h, 1])
-
-                x = int(x - w / 2)
-                y = int(y - h / 2)
-                h = int(h)
-                w = int(w)
-
                 if settings.save_crops:
+                    x = int(x - w / 2)
+                    y = int(y - h / 2)
+                    h = int(h)
+                    w = int(w)
+
                     crop = cleaned[y : y + h, x : x + w]
                     raw_crop = raw_bg_corr[y : y + h, x : x + w]
                     cv.drawContours(mask,[cnt],-1,(255), thickness=cv.FILLED)                    
                     c_mask = mask[y : y + h, x : x + w]
-                    crop_mask = np.where(c_mask == 255, crop, 255)
+                    crop_masked = np.where(c_mask == 255, crop, 255)
                     #raw_crop_mask = np.where(c_mask == 255, raw_crop, 255)
                     
                     
-                    cv.imwrite(deconv_crop_fn, crop_mask)#now only the object is saved and not objects close to it
+                    cv.imwrite(deconv_crop_fn, crop_masked)#now only the object is saved and not objects close to it
                     cv.imwrite(raw_crop_fn, raw_crop)
                     cv.imwrite(mask_fn, c_mask)
+                
+                # insert region porperties
+                
+                region_data_dict_raw = calculate_regionprops(c_mask, raw_crop)
+                region_data_dict_deconv = calculate_regionprops(c_mask, crop_masked)
+
+                #extract values from dictionary
+                region_data_dict_raw = list(region_data_dict_raw.values())
+                region_data_dict_deconv = list(region_data_dict_deconv.values())
+                
+
+                crop_data.append([c, os.path.basename(raw_crop_fn),mean_raw[0],mean_raw[1],mean,std, areas[i], x, y, w, h, 1, *region_data_dict_deconv])
+
+           
+                
             else:
-                crop_data.append([c, os.path.basename(mask_fn),mean_raw[0],mean_raw[1],mean,std, areas[i], x, y, w, h, 0])
+                no_data_fields = [np.nan] * 32    # not nice but works
+                crop_data.append([c, os.path.basename(mask_fn),mean_raw[0],mean_raw[1],mean,std, areas[i], x, y, w, h, 0, *no_data_fields])
 
             c += 1
 
