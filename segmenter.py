@@ -341,65 +341,65 @@ def select_directories():
 
 if __name__ == "__main__":
     run_segmenter(
-        "/home/fanny/M181_test_set_2", #source folder
-        "/home/fanny/segmentation_output", #destination folder
+        "/home/fanny/M181-3", #source folder
+        "/home/fanny/M181-3_output_test", #destination folder
         True, #deconvolution        
     )
 
-# if __name__ == "__main__":
-#     source_base = "/media/plankton/Elements"
-#     dest_base = "/media/plankton/30781fe1-cea5-4503-ae00-1986beb935d2/Segmentation_results/M181"
+if __name__ == "__main__":
+    source_base = "/media/plankton/Elements"
+    dest_base = "/media/plankton/30781fe1-cea5-4503-ae00-1986beb935d2/Segmentation_results/M181"
 
-#     for folder in os.listdir(source_base):
-#         dir = os.path.join(source_base,folder)
-#         source_folder = os.path.join(dir, 'PNG')
-#         destination_folder = source_folder.replace(source_base, dest_base)
-#         if folder == '$RECYCLE.BIN':
-#             continue
-#         elif folder == 'System Volume Information':
-#             continue
-#         elif folder == '.Trash-1000':
-#             continue
-#         #elif folder in ['M181-204-1_CTD-056_00°00S-024°00W_20220511-0913']:
-#         #    continue
-#         if folder in os.listdir(dest_base):
-#             if len(os.listdir(os.path.join(destination_folder,'PNG','Data'))) >= (len(os.listdir(source_folder))+1):
-#                 print(folder, 'already fully segmented in destination folder! Skipping...')
-#                 continue
-#             elif len(os.listdir(os.path.join(destination_folder,'PNG','Data'))) < (len(os.listdir(source_folder))+1):
-#                 print(folder, 'already more images in destination folder! Please check manually! Skipping...')
-#                 continue
-#             elif os.path.isdir(dir):
-#                 print(folder)
+    for folder in os.listdir(source_base):
+        dir = os.path.join(source_base,folder)
+        source_folder = os.path.join(dir, 'PNG')
+        destination_folder = source_folder.replace(source_base, dest_base)
+        if folder == '$RECYCLE.BIN':
+            continue
+        elif folder == 'System Volume Information':
+            continue
+        elif folder == '.Trash-1000':
+            continue
+        #elif folder in ['M181-204-1_CTD-056_00°00S-024°00W_20220511-0913']:
+        #    continue
+        if folder in os.listdir(dest_base):
+            if len(os.listdir(os.path.join(destination_folder,'PNG','Data'))) >= (len(os.listdir(source_folder))+1):
+                print(folder, 'already fully segmented in destination folder! Skipping...')
+                continue
+            elif len(os.listdir(os.path.join(destination_folder,'PNG','Data'))) < (len(os.listdir(source_folder))+1):
+                print(folder, 'already more images in destination folder! Please check manually! Skipping...')
+                continue
+            elif os.path.isdir(dir):
+                print(folder)
 
-#                 # Assuming the rest of the parameters are constant for all runs
-#                 deconvolution = True
-#                 depth_range = None  # Set your depth range here
-#                 log_file = None     # Set your log file location here
+                # Assuming the rest of the parameters are constant for all runs
+                deconvolution = True
+                depth_range = None  # Set your depth range here
+                log_file = None     # Set your log file location here
 
-#                 run_segmenter(
-#                     source_folder, 
-#                     destination_folder, 
-#                     deconvolution, 
-#                     #depth_range, 
-#                     #log_file
-#                     )
+                run_segmenter(
+                    source_folder, 
+                    destination_folder, 
+                    deconvolution, 
+                    #depth_range, 
+                    #log_file
+                    )
                 
-#         elif os.path.isdir(dir):
-#             print(folder)
-#             source_folder = os.path.join(dir, 'PNG')
-#             destination_folder = source_folder.replace(source_base, dest_base)
+        elif os.path.isdir(dir):
+            print(folder)
+            source_folder = os.path.join(dir, 'PNG')
+            destination_folder = source_folder.replace(source_base, dest_base)
 
-#             # Assuming the rest of the parameters are constant for all runs
-#             deconvolution = True
-#             depth_range = None  # Set your depth range here
-#             log_file = None     # Set your log file location here
+            # Assuming the rest of the parameters are constant for all runs
+            deconvolution = True
+            depth_range = None  # Set your depth range here
+            log_file = None     # Set your log file location here
 
-#             run_segmenter(
-#                 source_folder, 
-#                 destination_folder, 
-#                 deconvolution, 
-#                 #depth_range, 
-#                 #log_file
-#                 )
+            run_segmenter(
+                source_folder, 
+                destination_folder, 
+                deconvolution, 
+                #depth_range, 
+                #log_file
+                )
             

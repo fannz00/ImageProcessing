@@ -35,14 +35,16 @@ def generate_histogram(df, save_path, classlist):
     for _, row in df.iterrows():
         pressures = row['pressure']
         
-        # Get the bin index for the current pressure
-        bin_index = np.digitize(pressures, bins) - 1
-        
-        # Loop over each top prediction
-        for label_column in ['top1', 'top2', 'top3', 'top4', 'top5']:
-            label = row[label_column]
-            if 0 <= bin_index < len(bins) - 1:
-                bin_counts[label][bin_index] += 1
+        # Ensure pressures is not None
+        if pressures is not None:
+            # Get the bin index for the current pressure
+            bin_index = np.digitize(pressures, bins) - 1
+            
+            # Loop over each top prediction
+            for label_column in ['top1', 'top2', 'top3', 'top4', 'top5']:
+                label = row[label_column]
+                if 0 <= bin_index < len(bins) - 1:
+                    bin_counts[label][bin_index] += 1
 
     # Plot the histogram
     plt.figure(figsize=(15, 7))
@@ -94,9 +96,12 @@ def resize_to_larger_edge(image, target_size):
     new_width = int(original_width * scale_factor)
     new_height = int(original_height * scale_factor)
     
+    try:
     # Resize the image
-    resized_image = F.resize(image, (new_height, new_width))
-    
+        resized_image = F.resize(image, (new_height, new_width))
+    except(ValueError):
+        print(image.size,new_height,new_width)
+        return None        
     return resized_image
 
 def custom_image_processor(image, target_size=(224, 224), padding_color=255):
@@ -104,8 +109,11 @@ def custom_image_processor(image, target_size=(224, 224), padding_color=255):
         image = image.convert('RGB')
     
     # Step 1: Resize the image
-    #resize_transform = transforms.Resize(target_size)
     resized_image = resize_to_larger_edge(image,224)
+
+    if resized_image is None:  # Skip processing if resizing failed
+        print(f"Skipping image due to resize failure: {image.size}")
+        return None  # This allows you to filter out bad images later
 
     #Step 2: Calculate padding
     new_width, new_height = resized_image.size
@@ -121,7 +129,6 @@ def custom_image_processor(image, target_size=(224, 224), padding_color=255):
 
     # Step 4: Apply other transformations
     transform_chain = transforms.Compose([
-        #transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(degrees=180,fill=255),
         transforms.ToTensor(),  # Convert to tensor
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # Normalize
@@ -133,7 +140,10 @@ def custom_image_processor(image, target_size=(224, 224), padding_color=255):
 # Example function to process a batch
 def process_batch(example_batch):
     # Process each image in the batch
-    processed_images = [custom_image_processor(img) for img in example_batch['image']]
+    processed_images = [
+        custom_image_processor(img) for img in example_batch['image']
+        if custom_image_processor(img) is not None
+        ]
     
     # Convert to a batch tensor
     inputs = torch.stack(processed_images)
@@ -149,7 +159,6 @@ def transform(example_batch):
     # Function to resize and pad an image to the desired size while keeping aspect ratio
     def resize_and_pad(image, desired_size):
         # Resize the image to ensure the longest side is 224 pixels
-        #add own resize function
         transform_resize = transforms.Resize(224)
         resized_image = transform_resize(image)
 
@@ -183,11 +192,6 @@ def get_predictions_on_dataset_in_batches(dataset, save_dir, batch_size=16):
     # Initialize model
     vit = ViTForImageClassification.from_pretrained(save_dir)
     
-    # Check if multiple GPUs are available and set the device accordingly
-    # if torch.cuda.device_count() > 1:
-    #     print(f"Using {torch.cuda.device_count()} GPUs!")
-    #     vit = torch.nn.DataParallel(vit)
-    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vit.to(device)
     
@@ -200,10 +204,8 @@ def get_predictions_on_dataset_in_batches(dataset, save_dir, batch_size=16):
 
     # Iterate over the DataLoader to collect batches
     for batch in tqdm(dataloader, desc="Processing dataset"):
-        #print(batch.keys())
         # Move inputs to the device
         inputs = batch['pixel_values'].to(device)
-        #batch_filenames = batch['filename']
 
         # Perform inference
         with torch.no_grad():
@@ -230,142 +232,12 @@ def get_predictions_on_dataset_in_batches(dataset, save_dir, batch_size=16):
     
     return filenames, predictions, probabilities
 
-if __name__ == "__main__":
+def classify_images(crops_folder, vit_predictions_csv, model_dir, histogram_path, classlist, generate_histogram_flag=False):
     # Load the dataset and include filenames
-    root_dir = '/home/fanny/segmentation_output'
-    img_dir = os.path.join(root_dir, 'Deconv_crops')
-    
-    ds_pisco = load_unclassified_images(img_dir)
-    print()
-
-    classlist = ['acantharia_protist',
-        'acantharia_protist_big_center',
-        'acantharia_protist_halo',
-        'amphipods',
-        'appendicularian_fritillaridae',
-        'appendicularian_s_shape',
-        'appendicularian_slight_curve',
-        'appendicularian_straight',
-        'artifacts',
-        'artifacts_edge',
-        'chaetognath_non_sagitta',
-        'chaetognath_other',
-        'chaetognath_sagitta',
-        'chordate_type1',
-        'copepod_calanoid',
-        'copepod_calanoid_eggs',
-        'copepod_calanoid_eucalanus',
-        'copepod_calanoid_flatheads',
-        'copepod_calanoid_frillyAntennae',
-        'copepod_calanoid_large',
-        'copepod_calanoid_large_side_antennatucked',
-        'copepod_calanoid_octomoms',
-        'copepod_calanoid_small_longantennae',
-        'copepod_cyclopoid_copilia',
-        'copepod_cyclopoid_oithona',
-        'copepod_cyclopoid_oithona_eggs',
-        'copepod_other',
-        'crustacean_other',
-        'ctenophore_cestid',
-        'ctenophore_cydippid_no_tentacles',
-        'ctenophore_cydippid_tentacles',
-        'ctenophore_lobate',
-        'decapods',
-        'detritus_blob',
-        'detritus_filamentous',
-        'detritus_other',
-        'diatom_chain_string',
-        'diatom_chain_tube',
-        'echinoderm_larva_pluteus_brittlestar',
-        'echinoderm_larva_pluteus_early',
-        'echinoderm_larva_pluteus_typeC',
-        'echinoderm_larva_pluteus_urchin',
-        'echinoderm_larva_seastar_bipinnaria',
-        'echinoderm_larva_seastar_brachiolaria',
-        'echinoderm_seacucumber_auricularia_larva',
-        'echinopluteus',
-        'ephyra',
-        'euphausiids',
-        'euphausiids_young',
-        'fecal_pellet',
-        'fish_larvae_deep_body',
-        'fish_larvae_leptocephali',
-        'fish_larvae_medium_body',
-        'fish_larvae_myctophids',
-        'fish_larvae_thin_body',
-        'fish_larvae_very_thin_body',
-        'heteropod',
-        'hydromedusae_aglaura',
-        'hydromedusae_bell_and_tentacles',
-        'hydromedusae_h15',
-        'hydromedusae_haliscera',
-        'hydromedusae_haliscera_small_sideview',
-        'hydromedusae_liriope',
-        'hydromedusae_narco_dark',
-        'hydromedusae_narco_young',
-        'hydromedusae_narcomedusae',
-        'hydromedusae_other',
-        'hydromedusae_partial_dark',
-        'hydromedusae_shapeA',
-        'hydromedusae_shapeA_sideview_small',
-        'hydromedusae_shapeB',
-        'hydromedusae_sideview_big',
-        'hydromedusae_solmaris',
-        'hydromedusae_solmundella',
-        'hydromedusae_typeD',
-        'hydromedusae_typeD_bell_and_tentacles',
-        'hydromedusae_typeE',
-        'hydromedusae_typeF',
-        'invertebrate_larvae_other_A',
-        'invertebrate_larvae_other_B',
-        'jellies_tentacles',
-        'polychaete',
-        'protist_dark_center',
-        'protist_fuzzy_olive',
-        'protist_noctiluca',
-        'protist_other',
-        'protist_star',
-        'pteropod_butterfly',
-        'pteropod_theco_dev_seq',
-        'pteropod_triangle',
-        'radiolarian_chain',
-        'radiolarian_colony',
-        'shrimp-like_other',
-        'shrimp_caridean',
-        'shrimp_sergestidae',
-        'shrimp_zoea',
-        'siphonophore_calycophoran_abylidae',
-        'siphonophore_calycophoran_rocketship_adult',
-        'siphonophore_calycophoran_rocketship_young',
-        'siphonophore_calycophoran_sphaeronectes',
-        'siphonophore_calycophoran_sphaeronectes_stem',
-        'siphonophore_calycophoran_sphaeronectes_young',
-        'siphonophore_other_parts',
-        'siphonophore_partial',
-        'siphonophore_physonect',
-        'siphonophore_physonect_young',
-        'stomatopod',
-        'tornaria_acorn_worm_larvae',
-        'trichodesmium_bowtie',
-        'trichodesmium_multiple',
-        'trichodesmium_puff',
-        'trichodesmium_tuft',
-        'trochophore_larvae',
-        'tunicate_doliolid',
-        'tunicate_doliolid_nurse',
-        'tunicate_partial',
-        'tunicate_salp',
-        'tunicate_salp_chains',
-        'unknown_blobs_and_smudges',
-        'unknown_sticks',
-        'unknown_unclassified']
+    ds_pisco = load_unclassified_images(crops_folder)
 
     # Apply the transform to the dataset
     ds_pisco_trans = ds_pisco.with_transform(process_batch)
-    #print(ds_pisco_trans[0])
-
-    # Define model name and path to the saved model
-    model_dir = '/home/fanny/250129_ViT_custom_size_sensitive/best_model'
 
     # Get predictions on the dataset in batches
     filenames, predictions, probabilities = get_predictions_on_dataset_in_batches(ds_pisco_trans, model_dir, batch_size=128)
@@ -384,15 +256,102 @@ if __name__ == "__main__":
         'prob4': [prob[3] for prob in probabilities],
         'prob5': [prob[4] for prob in probabilities]
     })    
-    result_path = os.path.join(root_dir,'ViT_predictions.csv')
-    df.to_csv(result_path, index=False)
+    df.to_csv(vit_predictions_csv, index=False)
     print("Predictions saved!")
 
     # Print the first 5 predictions
     print(df.head())
 
-    # Define the path to save the histogram
-    histogram_path = os.path.join(root_dir, 'top5_prediction_histogram.png')
+    # Generate histogram and save it if the flag is set
+    if generate_histogram_flag:
+        generate_histogram(df, histogram_path, classlist)
 
-    # Generate histogram and save it
-    generate_histogram(df, histogram_path, classlist)
+# Define the classlist
+classlist = [
+    'acantharia_protist', 'acantharia_protist_big_center', 'acantharia_protist_halo', 'amphipods',
+    'appendicularian_fritillaridae', 'appendicularian_s_shape', 'appendicularian_slight_curve',
+    'appendicularian_straight', 'artifacts', 'artifacts_edge', 'chaetognath_non_sagitta',
+    'chaetognath_other', 'chaetognath_sagitta', 'chordate_type1', 'copepod_calanoid',
+    'copepod_calanoid_eggs', 'copepod_calanoid_eucalanus', 'copepod_calanoid_flatheads',
+    'copepod_calanoid_frillyAntennae', 'copepod_calanoid_large', 'copepod_calanoid_large_side_antennatucked',
+    'copepod_calanoid_octomoms', 'copepod_calanoid_small_longantennae', 'copepod_cyclopoid_copilia',
+    'copepod_cyclopoid_oithona', 'copepod_cyclopoid_oithona_eggs', 'copepod_other', 'crustacean_other',
+    'ctenophore_cestid', 'ctenophore_cydippid_no_tentacles', 'ctenophore_cydippid_tentacles',
+    'ctenophore_lobate', 'decapods', 'detritus_blob', 'detritus_filamentous', 'detritus_other',
+    'diatom_chain_string', 'diatom_chain_tube', 'echinoderm_larva_pluteus_brittlestar',
+    'echinoderm_larva_pluteus_early', 'echinoderm_larva_pluteus_typeC', 'echinoderm_larva_pluteus_urchin',
+    'echinoderm_larva_seastar_bipinnaria', 'echinoderm_larva_seastar_brachiolaria',
+    'echinoderm_seacucumber_auricularia_larva', 'echinopluteus', 'ephyra', 'euphausiids',
+    'euphausiids_young', 'fecal_pellet', 'fish_larvae_deep_body', 'fish_larvae_leptocephali',
+    'fish_larvae_medium_body', 'fish_larvae_myctophids', 'fish_larvae_thin_body', 'fish_larvae_very_thin_body',
+    'heteropod', 'hydromedusae_aglaura', 'hydromedusae_bell_and_tentacles', 'hydromedusae_h15',
+    'hydromedusae_haliscera', 'hydromedusae_haliscera_small_sideview', 'hydromedusae_liriope',
+    'hydromedusae_narco_dark', 'hydromedusae_narco_young', 'hydromedusae_narcomedusae', 'hydromedusae_other',
+    'hydromedusae_partial_dark', 'hydromedusae_shapeA', 'hydromedusae_shapeA_sideview_small',
+    'hydromedusae_shapeB', 'hydromedusae_sideview_big', 'hydromedusae_solmaris', 'hydromedusae_solmundella',
+    'hydromedusae_typeD', 'hydromedusae_typeD_bell_and_tentacles', 'hydromedusae_typeE', 'hydromedusae_typeF',
+    'invertebrate_larvae_other_A', 'invertebrate_larvae_other_B', 'jellies_tentacles', 'polychaete',
+    'protist_dark_center', 'protist_fuzzy_olive', 'protist_noctiluca', 'protist_other', 'protist_star',
+    'pteropod_butterfly', 'pteropod_theco_dev_seq', 'pteropod_triangle', 'radiolarian_chain',
+    'radiolarian_colony', 'shrimp-like_other', 'shrimp_caridean', 'shrimp_sergestidae', 'shrimp_zoea',
+    'siphonophore_calycophoran_abylidae', 'siphonophore_calycophoran_rocketship_adult',
+    'siphonophore_calycophoran_rocketship_young', 'siphonophore_calycophoran_sphaeronectes',
+    'siphonophore_calycophoran_sphaeronectes_stem', 'siphonophore_calycophoran_sphaeronectes_young',
+    'siphonophore_other_parts', 'siphonophore_partial', 'siphonophore_physonect', 'siphonophore_physonect_young',
+    'stomatopod', 'tornaria_acorn_worm_larvae', 'trichodesmium_bowtie', 'trichodesmium_multiple',
+    'trichodesmium_puff', 'trichodesmium_tuft', 'trochophore_larvae', 'tunicate_doliolid',
+    'tunicate_doliolid_nurse', 'tunicate_partial', 'tunicate_salp', 'tunicate_salp_chains',
+    'unknown_blobs_and_smudges', 'unknown_sticks', 'unknown_unclassified'
+]
+
+if __name__ == "__main__":
+    # Load the dataset and include filenames
+    #root_dir = '/home/fanny/M181-2_test'
+    output_base_folder = '/home/fanny/M181-3_output'
+    
+    for root, dirs, files in os.walk(root_dir):
+        if "PNG" in dirs:  # Check if a "PNG" folder exists in the current directory
+            parent_folder_name = os.path.basename(root)
+            destination_path = os.path.join(output_base_folder, parent_folder_name + "_output")
+            os.makedirs(destination_path, exist_ok=True)
+            
+            img_dir = os.path.join(destination_path, 'Deconv_crops')
+            ds_pisco = load_unclassified_images(img_dir)
+            print()
+
+            # Apply the transform to the dataset
+            ds_pisco_trans = ds_pisco.with_transform(process_batch)
+
+            # Define model name and path to the saved model
+            model_dir = '/home/fanny/250129_ViT_custom_size_sensitive/best_model'
+
+            # Get predictions on the dataset in batches
+            filenames, predictions, probabilities = get_predictions_on_dataset_in_batches(ds_pisco_trans, model_dir, batch_size=64)
+
+            # Create a DataFrame and store it on disk
+            df = pd.DataFrame({
+                'filename': filenames,
+                'top1': [pred[0] for pred in predictions],
+                'top2': [pred[1] for pred in predictions],
+                'top3': [pred[2] for pred in predictions],
+                'top4': [pred[3] for pred in predictions],
+                'top5': [pred[4] for pred in predictions],
+                'prob1': [prob[0] for prob in probabilities],
+                'prob2': [prob[1] for prob in probabilities],
+                'prob3': [prob[2] for prob in probabilities],
+                'prob4': [prob[3] for prob in probabilities],
+                'prob5': [prob[4] for prob in probabilities]
+            })    
+            result_path = os.path.join(destination_path, 'ViT_predictions.csv')
+            df.to_csv(result_path, index=False)
+            print("Predictions saved!")
+
+            # Print the first 5 predictions
+            print(df.head())
+
+            # Define the path to save the histogram
+            histogram_path = os.path.join(destination_path, 'top5_prediction_histogram.png')
+
+            # Generate histogram and save it if the flag is set
+            generate_histogram_flag = False  # Set this flag to True if you want to generate the histogram
+            classify_images(img_dir, result_path, model_dir, histogram_path, classlist, generate_histogram_flag)

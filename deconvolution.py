@@ -30,12 +30,10 @@ else:
     device = torch.device('cpu')
 
 model.load_state_dict(torch.load(model_path, map_location=device))
-if device.type == 'cuda':
-    if torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model)
+if torch.cuda.device_count() > 1:
+    model = torch.nn.DataParallel(model)
 
 model.to(device)
-
 model.eval()
 
 def run_deconvolution(input: Queue, output: Queue, n_imgs: int, batch_size: int = 4):
@@ -72,10 +70,9 @@ def run_deconvolution(input: Queue, output: Queue, n_imgs: int, batch_size: int 
     while n_imgs > 0:
         corrected, cleaned, mean, fn = input.get()
         n_imgs -= 1
-        if mean[1]>2: #check if stdev is larger that 2 (not a black image)
+        if mean[1] > 2:  # check if stdev is larger than 2 (not a black image)
 
             # Prepare the image for deconvolution
-            # ... [your existing image preprocessing code] ...
             x = cleaned / 255
             x_t = torch.from_numpy(x).to(device)
             x_t = x_t.unsqueeze(0).unsqueeze(0)
@@ -98,7 +95,6 @@ def run_deconvolution(input: Queue, output: Queue, n_imgs: int, batch_size: int 
                     deconv = y_hat_batch.detach().cpu().numpy()[i, 0]
                     deconv = deconv * 255
                     cleaned = deconv.astype(np.uint8)
-                    #corrected = cv.bitwise_not(cleaned)
 
                     # Put the result in the output queue
                     output.put((raw_imgs[i], cleaned, mean, filenames[i]))
@@ -108,7 +104,7 @@ def run_deconvolution(input: Queue, output: Queue, n_imgs: int, batch_size: int 
                 filenames.clear()
                 raw_imgs.clear()
         else:
-            output.put(([],[],mean, fn))
+            output.put(([], [], mean, fn))
 
     print('deconvolution finished')
 
@@ -118,7 +114,7 @@ def profiled_run_deconvolution(input: Queue, output: Queue, n_imgs: int, batch_s
     profiler.enable()
 
     # Call the original function
-    run_deconvolution(input,output,n_imgs, batch_size)
+    run_deconvolution(input, output, n_imgs, batch_size)
 
     # Disable the profiler and save the results to a file
     profiler.disable()
