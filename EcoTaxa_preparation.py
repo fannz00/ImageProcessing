@@ -1,5 +1,4 @@
 import logging
-from segmenter import run_segmenter
 import pandas as pd
 import os
 import csv
@@ -12,7 +11,11 @@ import subprocess
 from pyecotaxa.remote import Remote
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[
+    logging.FileHandler("ET_preparation.log"),
+    logging.StreamHandler()
+])
+
 
 def gen_crop_df(path:str, small:bool, size_filter:int = 0):
     """
@@ -24,6 +27,9 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0):
     Returns:
     pandas.DataFrame: The concatenated and processed DataFrame with additional columns for analysis.
     """
+    
+    logging.info(f"Generating crop DataFrame from path: {path}, small: {small}, size_filter: {size_filter}")
+
 
     def area_to_esd(area: float) -> float:
         pixel_size = 13.5*2 #in µm/pixel @ 2560x2560 
@@ -48,9 +54,11 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0):
                 dataframes.append(df)
                 id+=1
             else:
+                logging.warning(f"File {file} has {len(df.columns)} columns instead of 44")
                 continue
         except EmptyDataError:
             empty_file_counter += 1
+            logging.warning(f"File {file} is empty")
             print(f"File {file} is empty")
 
     df = pd.concat(dataframes, ignore_index=True)
@@ -115,9 +123,83 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0):
     #filter the df for objects where 1 dimension is larger than ca. 1mm
     df = df[(df['w'] > size_filter) | (df['h'] > size_filter)]
     df_unique = df.drop_duplicates(subset=['img_id'])
+    logging.info(f'{empty_file_counter} files were empty and were dropped; Number of unique images: {len(df_unique)}') 
     print(f'{empty_file_counter} files were empty and were dropped; Number of unique images: {len(df_unique)}')
 
     return df
+
+def add_ctd_data(ctd_data_loc:str, crop_df):
+    '''function that matches the right files and adds the ctd data from a given location to the crop dataframe '''
+    logging.info("Adding CTD data to the crop DataFrame")
+
+    # Extract the number after '_CTD-' in the profile folder name
+    profile_folder_name = os.path.basename(ctd_data_loc)
+    match = re.search(r'_CTD-(\d+)_', profile_folder_name)
+    if not match:
+        logging.error(f"Could not extract CTD number from profile folder name: {profile_folder_name}")
+        return crop_df
+    ctd_number = match.group(1).zfill(3)  # Ensure the number is zero-padded to 3 digits
+
+    # Find the correct CTD data file
+    ctd_data_dir = '/home/fanny/CTD_preliminary_calibrated'
+    ctd_data_file = None
+
+    for file in os.listdir(ctd_data_dir):
+        if file.endswith('.ctd') and f'_{ctd_number}_' in file:
+            ctd_data_file = os.path.join(ctd_data_dir, file)
+            break
+
+    if ctd_data_file is None:
+        logging.error(f"CTD data file not found for profile: {profile_folder_name}")
+        return crop_df
+
+    # Reading the specified header line (line 124) to extract column names
+    with open(ctd_data_file, 'r') as file:
+        for _ in range(123):
+            next(file)  # Skip lines until the header
+        header_line = next(file).strip()  # Read the header line
+
+    # Processing the header line to get column names
+    # The header line is expected to be in the format "Columns  = column1:column2:..."
+    column_names = header_line.split(' = ')[1].split(':')
+    ctd_df = pd.read_csv(ctd_data_file, delim_whitespace=True, header=None, skiprows=124, names=column_names)
+    ctd_df['z_factor'] = ctd_df['z'] / ctd_df['p']
+    logging.info(f"CTD data loaded and z_factor calculated")
+    
+    # Function to interpolate a column based on closest pressure values
+    def interpolate_column(pressure, column):
+        # Sort 'p' values based on the distance from the current pressure
+        closest_ps = ctd_df['p'].iloc[(ctd_df['p'] - pressure).abs().argsort()[:2]]
+        
+        # Get corresponding column values
+        column_values = ctd_df.loc[closest_ps.index, column]
+        
+        # Linear interpolation
+        return np.interp(pressure, closest_ps, column_values)
+    
+    # Columns to interpolate
+    columns = ['s', 'o', 't', 'chl', 'z_factor']
+
+    # Identify unique pressures and calculate their interpolated 's' values
+    unique_pressures = crop_df['pressure [dbar]'].unique()
+    logging.info(f"Unique pressures identified: {len(unique_pressures)}")
+
+    # Interpolate for each column and store the results in a dictionary
+    interpolated_columns = {column: {pressure: interpolate_column(pressure, column) 
+                                    for pressure in unique_pressures}
+                            for column in columns}
+
+    for column in columns:
+        new_col_name = f'interpolated_{column}'
+        crop_df[new_col_name] = crop_df['pressure [dbar]'].map(interpolated_columns[column])
+        logging.info(f"Interpolated column '{new_col_name}' added to the crop DataFrame")
+    # Determine the position of pressure column
+    position = crop_df.columns.get_loc('pressure [dbar]') + 1
+
+    # Insert a new column. For example, let's insert a column named 'new_column' with a constant value
+    crop_df.insert(position, 'depth [m]', (crop_df['pressure [dbar]'] * crop_df['interpolated_z_factor']).round(3))
+    logging.info("Depth column added to the crop DataFrame")
+    return crop_df
 
 def prepare_prediction_data(prediction_csv, mapping_csv, sep="\t"):    
     # Load CSV files
@@ -222,6 +304,7 @@ def zip_data(folder_path, zip_path, extra_file=None):
     # Create ZIP archive
     shutil.make_archive(zip_path.replace(".zip", ""), 'zip', folder_path)
     print(f"Zipped {folder_path} to {zip_path}")
+    logging.info(f"Zipped {folder_path} to {zip_path}")
 
 # def ET_upload(remote, project_id, folder_path): #Uploads a zip file to an EcoTaxa project using terminal commands.
 #     try:
@@ -232,14 +315,18 @@ def zip_data(folder_path, zip_path, extra_file=None):
 
 if __name__ == "__main__":
     # Define file paths
-    file_path = '/home/fanny/M181-3_output/Data'
-    prediction_csv = '/home/fanny/M181-3_output/ViT_predictions.csv'
+    file_path = '/home/fanny/M181-3_output/M181-214-1_CTD-057_00°00S-025°00W_20220511-1853/Data'
+    prediction_csv = '/home/fanny/M181-3_output/M181-214-1_CTD-057_00°00S-025°00W_20220511-1853/ViT_predictions.csv'
     mapping_csv = '/home/fanny/taxonomic_data/Polytaxo_classes.csv'
-    eco_taxa_folder = "/home/fanny/M181-3_output/EcoTaxa"
+    eco_taxa_folder = "/home/fanny/M181-3_output/M181-214-1_CTD-057_00°00S-025°00W_20220511-1853/EcoTaxa"
+    ctd_data_folder = '/home/fanny/CTD_preliminary_calibrated'
     os.makedirs(eco_taxa_folder, exist_ok=True)
 
     # Generate crop DataFrame
     segmentation_df = gen_crop_df(file_path, False)
+
+    # Add CTD data
+    segmentation_df = add_ctd_data(ctd_data_folder, segmentation_df)
 
     # Prepare prediction data
     prediction_df = prepare_prediction_data(prediction_csv, mapping_csv)
@@ -250,8 +337,8 @@ if __name__ == "__main__":
     # Determine data types and insert as the first row
     dtype_row = [determine_dtype(segm_and_prediction_df.dtypes[col]) for col in segm_and_prediction_df.columns]
     segm_and_prediction_df.loc[-1] = dtype_row  # Add the dtype row
-    segm_and_prediction_df.index = segm_and_prediction_df.index + 1  # Shift index
-    segm_and_prediction_df = segm_and_prediction_df.sort_index()  # Sort by index
+    # segm_and_prediction_df.index = segm_and_prediction_df.index + 1  # Shift index
+    # segm_and_prediction_df = segm_and_prediction_df.sort_index()  # Sort by index
 
     # Save combined data as TSV file
     metadata_path = os.path.join(eco_taxa_folder, 'ecotaxa_metadata.tsv')
@@ -264,8 +351,8 @@ if __name__ == "__main__":
         logging.error("Failed to generate metadata TSV file")
 
     # Define paths for zipping
-    deconv_crops_folder = '/home/fanny/M181-3_output/Deconv_crops'
-    raw_crops_folder = '/home/fanny/M181-3_output/Crops'
+    deconv_crops_folder = os.path.join(os.path.dirname(file_path), 'Deconv_crops')
+    raw_crops_folder = os.path.join(os.path.dirname(file_path), 'Crops')
     zip_path_deconv = os.path.join(eco_taxa_folder, "ecotaxa_upload_deconv.zip")
     zip_path_raw = os.path.join(eco_taxa_folder, "ecotaxa_upload_raw.zip")
 
