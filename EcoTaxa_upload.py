@@ -2,8 +2,19 @@ import logging
 import os
 from pyecotaxa.remote import Remote
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configure logging to both console and file
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# File handler
+file_handler = logging.FileHandler('/home/fanny/ImageProcessing/EcoTaxa_upload.log', mode='a')
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(console_handler)
 
 def login_to_ecotaxa(username, password):
     try:
@@ -22,39 +33,58 @@ def ET_upload(remote, project_id, folder_path):
     except Exception as e:
         logging.error(f"Error during upload: {e}")
 
-def upload_to_ecotaxa(remote, zip_path_raw, zip_path_deconv):
-    try:
-        # upload to ET
-        ET_upload(remote, 15753, zip_path_raw)
-        ET_upload(remote, 15862, zip_path_deconv)
-        logging.info("Upload to EcoTaxa completed successfully.")
-    except Exception as e:
-        logging.error(f"Error during upload: {e}")
 
-def upload_all_zips(remote, output_base_folder):
-    for root, dirs, files in os.walk(process_output_base_folder):
-        if "EcoTaxa" in dirs:  # check if ecotaxa folder exists
-            eco_taxa_folder = os.path.join(root, "EcoTaxa")
-            parent_folder_name = os.path.basename(root)
+
+def upload_all_zips(remote, base_folder):      
+    for profile in os.listdir(base_folder):
+        profile_path = os.path.join(base_folder, profile)
+        if not os.path.isdir(profile_path):
+            logging.warning(f"Skipping non-directory item: {profile_path}")
+            continue
+
+        logging.info(f"Processing EcoTaxa folder: {profile_path}")                
+
+        # Find all zip files in the sub folder
+        zip_files = [f for f in os.listdir(profile_path) if f.endswith('.zip')]
+        # Check if there are zip files with "part" in their names
+        part_zip_files = [f for f in zip_files if "part" in f]
+    
+        if part_zip_files:
+            # If "part" zip files exist, upload only those
+            for part_zip in part_zip_files:
+                zip_path = os.path.join(profile_path, part_zip)
+                project_id = 15862 if "deconv" in part_zip else 15753  # Adjust project IDs as needed
+                ET_upload(remote, project_id, zip_path)
+                logging.info(f"Uploaded {part_zip} to project {project_id}.")
+        else:
+            # Otherwise, upload the default crops.zip and deconv_crops.zip
+            zip_path_deconv = os.path.join(profile_path, "deconv_crops.zip")
+            ET_upload(remote, 15862, zip_path_deconv)
+            logging.info(f"Uploaded deconv_crops.zip to project 15862.")
+            zip_path_raw = os.path.join(profile_path, "crops.zip")
+            ET_upload(remote, 15753, zip_path_raw)
+            logging.info(f"Uploaded crops.zip to project 15753.")
             
-            # Define paths for the zip files
-            zip_path_deconv = os.path.join(eco_taxa_folder, "ecotaxa_upload_deconv.zip")
-            zip_path_raw = os.path.join(eco_taxa_folder, "ecotaxa_upload_raw.zip")
+                        
 
-            # Check if the zip files exist
-            if os.path.exists(zip_path_deconv) and os.path.exists(zip_path_raw):
-                upload_to_ecotaxa(remote, zip_path_raw, zip_path_deconv)
-            else:
-                logging.warning(f"Zip files not found for folder {parent_folder_name}")
 
 if __name__ == "__main__":
     # Define username and password
     USERNAME = 'fbrodbek@geomar.de'
     PASSWORD = 'CopepodC0nspiracy!'
 
+    # remote = login_to_ecotaxa(USERNAME, PASSWORD)
+    # if remote:
+    #     zip_path_raw = '/home/fanny/EcoTaxa/M181-066-1_CTD-024_03deg30S-007deg15E_20220428-1514_updated/crops1.zip'
+    #     zip_path_deconv = '/home/fanny/EcoTaxa/M181-005-1_CTD-002_16deg00S-011deg34E_20220422-0039_updated/deconv_crops.zip'
+    #     ET_upload(remote, zip_path_deconv)
+    #     ET_upload(remote, zip_path_raw)
+    # else:
+    #     logging.error("Failed to log into EcoTaxa. Exiting...")
+
     remote = login_to_ecotaxa(USERNAME, PASSWORD)
     if remote:
-        process_output_base_folder = '/home/fanny/M181-3_output'
-        upload_all_zips(remote, process_output_base_folder)
+        output_base_folder = '/home/fanny/EcoTaxa'
+        upload_all_zips(remote, output_base_folder)
     else:
         logging.error("Failed to log into EcoTaxa. Exiting...")

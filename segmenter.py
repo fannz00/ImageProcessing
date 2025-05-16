@@ -6,6 +6,7 @@ import csv
 from threading import Thread
 from multiprocessing import Queue, Manager, Process, Value
 import imghdr
+import logging
 #from tqdm import tqdm
 
 from reader import run_reader, ReaderOutput, profiled_run_reader
@@ -16,6 +17,13 @@ from detection import run_detection, DetectionSettings
 import tkinter as tk
 from tkinter import filedialog
 import pickle
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[
+    logging.FileHandler("pipeline.log"),
+    logging.StreamHandler()
+])
+
 
 def compute_radius(files):
     """
@@ -167,6 +175,7 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
         files.sort()
     #files = [os.path.join(src_path, file) for i, file in enumerate(files)]
     print('start segmentation...')
+    logging.info('start segmentation...')
     #print(files[:10])
 
     radius = compute_radius(files)
@@ -206,6 +215,7 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
     for batch in batches:
         batch_n += 1
         print(f'Batch {batch_n} of {len(batches)}')
+        #logging.info(f'Batch {batch_n} of {len(batches)}')
         start = time.perf_counter()
         batch = [(img, i) for i, img in enumerate(batch)]
         reader_output = ReaderOutput(len(batch), manager)
@@ -239,18 +249,20 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
             deconv_output_queue = bg_output_queue
         
         #print(len(batch))
-        n_cores = 16 #8 on Seavision
+        n_cores = 8 #8 on Seavision
 
         run_detection(deconv_output_queue, settings, n_cores, len(batch), detect_running)
 
         end = time.perf_counter()
         duration = end - start
         print(f'Time per image: {duration / len(batch)}')
+        #logging.info(f'Time per image: {duration / len(batch)}')
         #print(bg_output_queue.empty(),deconv_output_queue.empty())
         #print(len(reader_output.images))
         bg_output_queue.close()
         deconv_output_queue.close()
-    print('finished segmentation...') 
+    print('finished segmentation...')
+    logging.info('finished segmentation...')
 
 def process_image_folders(source_paths, dest_base, deconvolution=True):
     """

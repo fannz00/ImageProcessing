@@ -3,12 +3,20 @@ import numpy as np
 import os
 import time
 import csv
+import logging
 
 from multiprocessing import Queue
 from process_pool import ProcessPool
 from dataclasses import dataclass
 from skimage import measure
 #from tqdm import tqdm
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[
+    logging.FileHandler("pipeline.log"),
+    logging.StreamHandler()
+])
+
 
 
 @dataclass

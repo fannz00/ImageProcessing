@@ -1,0 +1,182 @@
+Crop DataFrame length: 4017678
+Prediction DataFrame length: 18083155
+
+
+2025-04-29 10:54:24,673 - Starting to process prediction data...
+2025-04-29 10:54:24,675 - Processing: /home/fanny/M181_output/M181-276-1_CTD-072_00°00S-037°00W_20220516-2214/ViT_predictions.csv
+2025-04-29 10:54:26,023 - Processing: /home/fanny/M181_output/M181-287-1_CTD-076_00°00S-039°50W_20220518-0209/ViT_predictions.csv
+2025-04-29 10:54:29,239 - Processing: /home/fanny/M181_output/M181-029-1_CTD-013-10°48S-013°03E_20220424-0539/ViT_predictions.csv
+2025-04-29 10:54:37,716 - Processing: /home/fanny/M181_output/M181-117-1_CTD-038_00°00S-009°00W_20220505-0250/ViT_predictions.csv
+2025-04-29 10:54:40,174 - Processing: /home/fanny/M181_output/M181-153-1_CTD-045_00°00S-015°00W_20220507-1251/ViT_predictions.csv
+2025-04-29 10:54:41,897 - Processing: /home/fanny/M181_output/M181-261-1_CTD-068_00°00S-034°00W_20220515-1439/ViT_predictions.csv
+2025-04-29 10:54:49,577 - Processing: /home/fanny/M181_output/M181-131-1_CTD-041_00°00S-011°00W_20220506-0141/ViT_predictions.csv
+2025-04-29 10:54:52,689 - Processing: /home/fanny/M181_output/M181-194-1_CTD-054_00°00S-022°00W_20220510-1440/ViT_predictions.csv
+2025-04-29 10:55:05,836 - Processing: /home/fanny/M181_output/M181-112-1_CTD-037_00°00S-008°00W_20220504-1758/ViT_predictions.csv
+2025-04-29 10:55:08,967 - Processing: /home/fanny/M181_output/M181-102-1_CTD-034_00°00S-005°00W_20220503-1134/ViT_predictions.csv
+2025-04-29 10:55:22,496 - Processing: /home/fanny/M181_output/M181-038-1_CTD-016_10°32S-013°27E_20220425-0123/ViT_predictions.csv
+2025-04-29 10:55:42,389 - Processing: /home/fanny/M181_output/M181-105-1_CTD-035_00°00S-006°00W_20220503-2213/ViT_predictions.csv
+2025-04-29 10:55:53,132 - Processing: /home/fanny/M181_output/M181-021-1_CTD-009_10°40S-013°15E_20220423-2013/ViT_predictions.csv
+2025-04-29 10:56:01,901 - Processing: /home/fanny/M181_output/M181-294-1_CTD-079_00°00S-040°50W_20220518-1608/ViT_predictions.csv
+2025-04-29 10:56:03,574 - Processing: /home/fanny/M181_output/M181-044-1_CTD-018_10°55S-012°52E_20220425-1234/ViT_predictions.csv
+2025-04-29 10:56:08,601 - Processing: /home/fanny/M181_output/M181-165-1_CTD-048_00°00S-017°00W_20220508-0903/ViT_predictions.csv
+2025-04-29 10:56:11,694 - Processing: /home/fanny/M181_output/M181-066-1_CTD-024_03°30S-007°15E_20220428-1514/ViT_predictions.csv
+2025-04-29 10:56:12,453 - Processing: /home/fanny/M181_output/M181-061-1_CTD-023_06°00S-010°58E_20220427-1906/ViT_predictions.csv
+2025-04-29 10:56:26,805 - Processing: /home/fanny/M181_output/M181-027-1_CTD-012-10°46S-013°06E_20220424-0304/ViT_predictions.csv
+2025-04-29 10:56:37,537 - Processing: /home/fanny/M181_output/M181-076-1_CTD-026_00°00S-001°00E_20220430-1710/ViT_predictions.csv
+2025-04-29 10:56:39,808 - Processing: /home/fanny/M181_output/M181-040-1_CTD-017_10°34S-013°24E_20220425-0446/ViT_predictions.csv
+2025-04-29 10:56:51,397 - Processing: /home/fanny/M181_output/M181-013-1_CTD-006_10°50S-013°00E_20220423-1216/ViT_predictions.csv
+2025-04-29 10:56:54,696 - Processing: /home/fanny/M181_output/M181-290-1_CTD-078_00°00S-040°00W_20220518-1000/ViT_predictions.csv
+2025-04-29 10:56:56,371 - Processing: /home/fanny/M181_output/M181-126-1_CTD-040_00°00S-010°00W_20220505-1401/ViT_predictions.csv
+2025-04-29 10:56:59,861 - Processing: /home/fanny/M181_output/M181-281-1_CTD-073_00°00S-038°00W_20220517-0828/ViT_predictions.csv
+2025-04-29 10:57:02,494 - Processing: /home/fanny/M181_output/M181-009-1_CTD-004_14°00S-012°12E_20220422-1342/ViT_predictions.csv
+2025-04-29 10:57:13,972 - Processing: /home/fanny/M181_output/M181-140-1_CTD-043_00°00S-013°00W_20220506-1822/ViT_predictions.csv
+2025-04-29 10:57:16,551 - Processing: /home/fanny/M181_output/M181-220-1_CTD-059_00°00S-026°00W_20220512-0920/ViT_predictions.csv
+2025-04-29 10:57:19,709 - Processing: /home/fanny/M181_output/M181-017-1_CTD-007_10°36S-013°21E_20220423-1715/ViT_predictions.csv
+2025-04-29 10:57:29,160 - Processing: /home/fanny/M181_output/M181-170-1_CTD-049_00°00S-018°00W_20220508-1936/ViT_predictions.csv
+2025-04-29 10:57:32,811 - Processing: /home/fanny/M181_output/M181-049-1_CTD-020_11°20S-012°15E_20220425-2126/ViT_predictions.csv
+2025-04-29 10:57:45,443 - Processing: /home/fanny/M181_output/M181-272-1_CTD-071_00°00S-036°00W_20220516-1313/ViT_predictions.csv
+2025-04-29 10:57:48,213 - Processing: /home/fanny/M181_output/M181-083-1_CTD-028_00°00S-000°00E_20220501-0638/ViT_predictions.csv
+2025-04-29 10:57:51,025 - Processing: /home/fanny/M181_output/M181-146-1_CTD-044_00°00S-014°00W_20220507-0359/ViT_predictions.csv
+2025-04-29 10:57:54,112 - Processing: /home/fanny/M181_output/M181-124-1_CTD-039_00°00S-010°00W_20220505-1220/ViT_predictions.csv
+2025-04-29 10:57:57,035 - Processing: /home/fanny/M181_output/M181-267-1_CTD-070_00°00S-035°00W_20220516-0335/ViT_predictions.csv
+2025-04-29 10:58:00,009 - Processing: /home/fanny/M181_output/M181-189-1_CTD-053_00°00S-021°00W_20220510-0318/ViT_predictions.csv
+2025-04-29 10:58:03,560 - Processing: /home/fanny/M181_output/M181-295-1_CTD-080_00°00S-041°00W_20220518-2053/ViT_predictions.csv
+2025-04-29 10:58:06,808 - Processing: /home/fanny/M181_output/M181-288-1_CTD-077_00°00S-040°00W_20220518-0711/ViT_predictions.csv
+2025-04-29 10:58:08,556 - Processing: /home/fanny/M181_output/M181-052-1_CTD-021_11°45S-011°38E_20220426-0640/ViT_predictions.csv
+2025-04-29 10:58:14,887 - Processing: /home/fanny/M181_output/M181-035-1_CTD-015_10°30S-013°30E_20220424-2025/ViT_predictions.csv
+2025-04-29 10:58:37,003 - Processing: /home/fanny/M181_output/M181-011-1_CTD-005_13°00S-012°43E_20220422-2140/ViT_predictions.csv
+2025-04-29 10:58:46,147 - Processing: /home/fanny/M181_output/M181-265-1_CTD-069_00°00S-035°00W_20220516-0101/ViT_predictions.csv
+2025-04-29 10:58:49,660 - Processing: /home/fanny/M181_output/M181-181-1_CTD-051_00°00S-020°00W_20220509-1454/ViT_predictions.csv
+2025-04-29 10:58:53,101 - Processing: /home/fanny/M181_output/M181-216-1_CTD-058_00°00S-025°00W_20220511-2352/ViT_predictions.csv
+2025-04-29 10:59:05,501 - Processing: /home/fanny/M181_output/M181-091-1_CTD-030_00°00S-002°00W_20220502-0238/ViT_predictions.csv
+2025-04-29 10:59:15,506 - Processing: /home/fanny/M181_output/M181-002-1_CTD-001_17°00S-011°11E_20220421-1614/ViT_predictions.csv
+2025-04-29 10:59:22,845 - Processing: /home/fanny/M181_output/M181-071-1_CTD-025_00°00S-002°00E_20220430-0653/ViT_predictions.csv
+2025-04-29 10:59:32,250 - Processing: /home/fanny/M181_output/M181-283-1_CTD-074_00°00S-038°50W_20220517-1445/ViT_predictions.csv
+2025-04-29 10:59:35,412 - Processing: /home/fanny/M181_output/M181-252-1_CTD-066_00°00S-032°00W_20220514-1919/ViT_predictions.csv
+2025-04-29 10:59:39,372 - Processing: /home/fanny/M181_output/M181-255-1_CTD-067_00°00S-033°00W_20220515-0504/ViT_predictions.csv
+2025-04-29 10:59:43,177 - Processing: /home/fanny/M181_output/M181-245-1_CTD-065_00°00S-031°00W_20220514-0907/ViT_predictions.csv
+2025-04-29 10:59:47,738 - Processing: /home/fanny/M181_output/M181-107-1_CTD-036_00°00S-007°00W_20220504-0756/ViT_predictions.csv
+2025-04-29 10:59:53,674 - Processing: /home/fanny/M181_output/M181-005-1_CTD-002_16°00S-011°34E_20220422-0039/ViT_predictions.csv
+2025-04-29 11:00:11,716 - Processing: /home/fanny/M181_output/M181-019-1_CTD-008_10°38S-013°18E_20220423-1845/ViT_predictions.csv
+2025-04-29 11:00:18,515 - Processing: /home/fanny/M181_output/M181-099-1_CTD-033_00°00S-005°00W_20220503-1011/ViT_predictions.csv
+2025-04-29 11:00:26,181 - Processing: /home/fanny/M181_output/M181-204-1_CTD-056_00°00S-024°00W_20220511-0913/ViT_predictions.csv
+2025-04-29 11:00:30,387 - Processing: /home/fanny/M181_output/M181-134-1_CTD-042_00°00S-012°00W_20220506-1013/ViT_predictions.csv
+2025-04-29 11:00:33,945 - Processing: /home/fanny/M181_output/M181-238-1_CTD-062_00°00S-029°00W_20220513-1158/ViT_predictions.csv
+2025-04-29 11:00:38,715 - Processing: /home/fanny/M181_output/M181-160-1_CTD-047_00°00S-016°00W_20220508-0038/ViT_predictions.csv
+2025-04-29 11:00:43,018 - Processing: /home/fanny/M181_output/M181-081-1_CTD-027_00°00S-000°00E_20220501-0515/ViT_predictions.csv
+2025-04-29 11:00:45,236 - Processing: /home/fanny/M181_output/M181-285-1_CTD-075_00°00S-039°00W_20220517-2024/ViT_predictions.csv
+2025-04-29 11:00:48,296 - Processing: /home/fanny/M181_output/M181-096-1_CTD-032_00°00S-004°00W_20220502-2351/ViT_predictions.csv
+2025-04-29 11:01:01,662 - Processing: /home/fanny/M181_output/M181-227-1_CTD-060_00°00S-027°00W_20220512-1748/ViT_predictions.csv
+2025-04-29 11:01:06,222 - Processing: /home/fanny/M181_output/M181-241-1_CTD-063_00°00S-030°00W_20220513-2051/ViT_predictions.csv
+2025-04-29 11:01:10,828 - Processing: /home/fanny/M181_output/M181-093-1_CTD-031_00°00S-003°00W_20220502-1451/ViT_predictions.csv
+2025-04-29 11:01:21,993 - Processing: /home/fanny/M181_output/M181-156-1_CTD-046_00°00S-015°00W_20220507-1513/ViT_predictions.csv
+2025-04-29 11:01:26,371 - Processing: /home/fanny/M181_output/M181-007-1_CTD-003_15°00S-012°04E_20220422-0731/ViT_predictions.csv
+2025-04-29 11:01:35,163 - Processing: /home/fanny/M181_output/M181-033-1_CTD-014_10°28S-013°33E_20220424-1553/ViT_predictions.csv
+2025-04-29 11:01:51,415 - Processing: /home/fanny/M181_output/M181-243-1_CTD-064_00°00S-030°00W_20220513-2359/ViT_predictions.csv
+2025-04-29 11:01:57,058 - Processing: /home/fanny/M181_output/M181-200-1_CTD-055_00°00S-023°00W_20220511-0023/ViT_predictions.csv
+2025-04-29 11:02:02,013 - Processing: /home/fanny/M181_output/M181-023-1_CTD-010_10°42S-013°12E_20220423-2212/ViT_predictions.csv
+2025-04-29 11:02:14,428 - Processing: /home/fanny/M181_output/M181-297-1_CTD-081_00°00S-041°50W_20220519-0218/ViT_predictions.csv
+2025-04-29 11:02:19,546 - Processing: /home/fanny/M181_output/M181-233-1_CTD-061_00°00S-028°00W_20220513-0203/ViT_predictions.csv
+2025-04-29 11:02:24,467 - Processing: /home/fanny/M181_output/M181-175-1_CTD-050_00°00S-019°00W_20220509-0543/ViT_predictions.csv
+2025-04-29 11:02:29,321 - Processing: /home/fanny/M181_output/M181-185-1_CTD-052_00°00S-020°00W_20220509-1641/ViT_predictions.csv
+2025-04-29 11:05:30,809 - Complete prediction dataset generated.
+2025-04-29 11:05:30,809 - Starting to process crop data...
+2025-04-29 11:14:35,972 - Crop data processed.
+2025-04-29 11:16:22,827 - Combining crop and prediction data into metadata...
+2025-04-29 11:16:22,829 - original crop_df length: 4017678
+2025-04-29 11:16:22,829 - original prediction_df length: 18083155
+2025-04-29 11:16:41,633 - datasets merged
+2025-04-29 11:19:36,754 - Combining crop and prediction data into metadata...
+2025-04-29 11:19:36,755 - original crop_df length: 4017678
+2025-04-29 11:19:36,755 - original prediction_df length: 18083155
+2025-04-29 11:19:55,731 - datasets merged
+2025-04-29 11:19:55,731 - Crop DataFrame length after merging: 4017678
+2025-04-29 11:19:55,731 - Prediction DataFrame length after merging: 0
+2025-04-29 11:19:58,929 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 0
+2025-04-29 11:37:32,437 - Combining crop and prediction data into metadata...
+2025-04-29 11:37:32,438 - original crop_df length: 4017678
+2025-04-29 11:37:32,438 - original prediction_df length: 18083155
+2025-04-29 11:37:50,552 - datasets merged
+2025-04-29 11:37:50,553 - Crop DataFrame length after merging: 4017678
+2025-04-29 11:37:50,553 - Prediction DataFrame length after merging: 4011948
+2025-04-29 11:38:46,487 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 4011948
+2025-04-29 12:08:33,654 - Combining crop and prediction data into metadata...
+2025-04-29 12:08:33,654 - original crop_df length: 4017678
+2025-04-29 12:08:33,654 - original prediction_df length: 18083155
+2025-04-29 12:08:56,070 - datasets merged
+2025-04-29 12:08:56,070 - Crop DataFrame length after merging: 4017678
+2025-04-29 12:08:56,070 - Prediction DataFrame length after merging: 4011948
+2025-04-29 12:09:54,107 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 4011948
+2025-04-29 13:02:36,545 - Combining crop and prediction data into metadata...
+2025-04-29 13:02:36,545 - original crop_df length: 4017678
+2025-04-29 13:02:36,545 - original prediction_df length: 18083155
+2025-04-29 13:02:59,075 - datasets merged
+2025-04-29 13:02:59,076 - Crop DataFrame length after merging: 4017678
+2025-04-29 13:02:59,076 - Prediction DataFrame length after merging: 0
+2025-04-29 13:03:02,982 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 0
+2025-04-29 13:33:15,427 - Combining crop and prediction data into metadata...
+2025-04-29 13:33:15,427 - original crop_df length: 4017678
+2025-04-29 13:33:15,427 - original prediction_df length: 18083155
+2025-04-29 13:33:37,377 - datasets merged
+2025-04-29 13:33:37,377 - Crop DataFrame length after merging: 4017678
+2025-04-29 13:33:37,377 - Prediction DataFrame length after merging: 4011948
+2025-04-29 13:34:35,912 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 4011948
+2025-04-29 13:39:36,223 - Combining crop and prediction data into metadata...
+2025-04-29 13:39:36,223 - original crop_df length: 4017678
+2025-04-29 13:39:36,223 - original prediction_df length: 18083155
+2025-04-29 13:39:59,410 - datasets merged
+2025-04-29 13:39:59,410 - Crop DataFrame length after merging: 4017678
+2025-04-29 13:39:59,410 - Prediction DataFrame length after merging: 4011948
+2025-04-29 13:40:57,368 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 4011948
+2025-04-29 14:24:29,474 - Combining crop and prediction data into metadata...
+2025-04-29 14:24:29,474 - original crop_df length: 4017678
+2025-04-29 14:24:29,474 - original prediction_df length: 18083155
+2025-04-29 14:24:52,522 - datasets merged
+2025-04-29 14:24:52,522 - Crop DataFrame length after merging: 4017678
+2025-04-29 14:24:52,522 - Prediction DataFrame length after merging: 4011948
+2025-04-29 14:25:57,284 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 4011948
+2025-04-29 14:48:27,389 - Combining crop and prediction data into metadata...
+2025-04-29 14:48:27,390 - original crop_df length: 4017678
+2025-04-29 14:48:27,390 - original prediction_df length: 18083155
+2025-04-29 14:48:29,714 - Crop DataFrame length after removing duplicates: 4013313
+2025-04-29 14:48:52,941 - datasets merged
+2025-04-29 14:48:52,942 - Crop DataFrame length after merging: 4013313
+2025-04-29 14:48:52,942 - Prediction DataFrame length after merging: 4007445
+2025-04-29 14:50:03,013 - Row counts: crop_df_sorted: 4013313, prediction_df_sorted: 4007445
+2025-04-29 15:01:56,341 - Combining crop and prediction data into metadata...
+2025-04-29 15:01:56,341 - original crop_df length: 4017678
+2025-04-29 15:01:56,341 - original prediction_df length: 18083155
+2025-04-29 15:01:58,620 - Crop DataFrame length after removing duplicates: 4013313
+2025-04-29 15:02:12,934 - Prediction DataFrame length after removing duplicates: 18082919
+2025-04-29 15:02:36,030 - datasets merged
+2025-04-29 15:02:36,030 - Crop DataFrame length after merging: 4013313
+2025-04-29 15:02:36,030 - Prediction DataFrame length after merging: 4007287
+2025-04-29 15:03:47,605 - Row counts: crop_df_sorted: 4013313, prediction_df_sorted: 4007287
+
+
+2025-04-30 10:25:25,537 - Combining crop and prediction data into metadata...
+2025-04-30 10:25:25,537 - original crop_df length: 4017678
+2025-04-30 10:25:25,537 - original prediction_df length: 18083155
+2025-04-30 10:26:02,646 - datasets merged
+2025-04-30 10:26:02,646 - Crop DataFrame length after merging: 4013313
+2025-04-30 10:26:02,646 - Prediction DataFrame length after merging: 4007287
+2025-04-30 10:27:00,251 - Row counts: crop_df_sorted: 4013313, prediction_df_sorted: 4007287
+2025-04-30 10:31:48,623 - Combining crop and prediction data into metadata...
+2025-04-30 10:31:48,623 - original crop_df length: 4017678
+2025-04-30 10:31:48,623 - original prediction_df length: 18083155
+2025-04-30 10:32:10,484 - datasets merged
+2025-04-30 10:32:10,484 - Crop DataFrame length after merging: 4017678
+2025-04-30 10:32:10,484 - Prediction DataFrame length after merging: 4011948
+2025-04-30 10:33:09,395 - Number of unmatched rows in crop_df: 6032
+2025-04-30 10:33:09,396 - Row counts: crop_df_sorted: 4017678, prediction_df_sorted: 4011948
+
+2025-05-02 10:36:42,378 - Combining crop and prediction data into metadata...
+2025-05-02 10:36:42,380 - original crop_df length: 4017678
+2025-05-02 10:36:42,380 - original prediction_df length: 18083155
+2025-05-02 10:36:44,681 - Crop DataFrame length after removing duplicates: 4013313
+2025-05-02 10:36:58,210 - Prediction DataFrame length after removing duplicates: 18082919
+2025-05-02 10:37:19,804 - datasets merged
+2025-05-02 10:37:19,805 - Crop DataFrame length after merging: 4013313
+2025-05-02 10:37:19,805 - Prediction DataFrame length after merging: 4007287
+2025-05-02 10:38:20,223 - Number of unmatched rows in crop_df: 6026
+2025-05-02 10:38:20,223 - Row counts: crop_df_sorted: 4013313, prediction_df_sorted: 4007287

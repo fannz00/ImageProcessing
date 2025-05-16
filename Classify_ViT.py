@@ -12,6 +12,13 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 import torchvision.transforms.functional as F
+import logging
+
+#configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[
+    logging.FileHandler("pipeline.log"),
+    logging.StreamHandler()
+])
 
 def extract_pressure_from_filename(filename):
     # Use a regular expression to extract the pressure value from the filename
@@ -100,7 +107,8 @@ def resize_to_larger_edge(image, target_size):
     # Resize the image
         resized_image = F.resize(image, (new_height, new_width))
     except(ValueError):
-        print(image.size,new_height,new_width)
+        #print(image.size,new_height,new_width)
+        logging.info(f"Skipping: {image}: image size: {image.size}, new height: {new_height}, new width: {new_width}")
         return None        
     return resized_image
 
@@ -112,8 +120,8 @@ def custom_image_processor(image, target_size=(224, 224), padding_color=255):
     resized_image = resize_to_larger_edge(image,224)
 
     if resized_image is None:  # Skip processing if resizing failed
-        print(f"Skipping image due to resize failure: {image.size}")
-        return None  # This allows you to filter out bad images later
+        #print(f"Skipping image due to resize failure: {image.size}")
+        return None  # This allows to filter out bad images later
 
     #Step 2: Calculate padding
     new_width, new_height = resized_image.size
@@ -189,6 +197,7 @@ def transform(example_batch):
 
 # Define the function to perform inference on a dataset in batches
 def get_predictions_on_dataset_in_batches(dataset, save_dir, batch_size=16):
+    logging.info("Initializing model for predictions")
     # Initialize model
     vit = ViTForImageClassification.from_pretrained(save_dir)
     
@@ -230,9 +239,11 @@ def get_predictions_on_dataset_in_batches(dataset, save_dir, batch_size=16):
         # Collect top-5 probabilities
         probabilities.extend(top_probs.cpu().numpy())
     
+    logging.info(f"Predictions completed for {len(filenames)} images")
     return filenames, predictions, probabilities
 
 def classify_images(crops_folder, vit_predictions_csv, model_dir, histogram_path, classlist, generate_histogram_flag=False):
+    logging.info(f"Classifying images in folder: {crops_folder}")
     # Load the dataset and include filenames
     ds_pisco = load_unclassified_images(crops_folder)
 
@@ -257,6 +268,7 @@ def classify_images(crops_folder, vit_predictions_csv, model_dir, histogram_path
         'prob5': [prob[4] for prob in probabilities]
     })    
     df.to_csv(vit_predictions_csv, index=False)
+    logging.info(f"Predictions saved to {vit_predictions_csv}")
     print("Predictions saved!")
 
     # Print the first 5 predictions
@@ -306,8 +318,8 @@ classlist = [
 
 if __name__ == "__main__":
     # Load the dataset and include filenames
-    #root_dir = '/home/fanny/M181-2_test'
-    output_base_folder = '/home/fanny/M181-3_output'
+    root_dir = '/home/fanny/M181_test_set'
+    output_base_folder = '/home/fanny/M181_test_output/test'
     
     for root, dirs, files in os.walk(root_dir):
         if "PNG" in dirs:  # Check if a "PNG" folder exists in the current directory
