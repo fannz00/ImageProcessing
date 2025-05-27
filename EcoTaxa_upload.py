@@ -7,7 +7,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # File handler
-file_handler = logging.FileHandler('/home/fanny/ImageProcessing/EcoTaxa_upload.log', mode='a')
+file_handler = logging.FileHandler('/home/fanny/ImageProcessing/EcoTaxa_upload2.log', mode='a')
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(file_handler)
 
@@ -53,17 +53,17 @@ def upload_all_zips(remote, base_folder):
             # If "part" zip files exist, upload only those
             for part_zip in part_zip_files:
                 zip_path = os.path.join(profile_path, part_zip)
-                project_id = 15862 if "deconv" in part_zip else 15753  # Adjust project IDs as needed
+                project_id = 17108 if "deconv" in part_zip else 17109  # Adjust project IDs as needed
                 ET_upload(remote, project_id, zip_path)
                 logging.info(f"Uploaded {part_zip} to project {project_id}.")
         else:
             # Otherwise, upload the default crops.zip and deconv_crops.zip
             zip_path_deconv = os.path.join(profile_path, "deconv_crops.zip")
-            ET_upload(remote, 15862, zip_path_deconv)
-            logging.info(f"Uploaded deconv_crops.zip to project 15862.")
+            ET_upload(remote, 17108, zip_path_deconv)
+            logging.info(f"Uploaded deconv_crops.zip to project 17108.")
             zip_path_raw = os.path.join(profile_path, "crops.zip")
-            ET_upload(remote, 15753, zip_path_raw)
-            logging.info(f"Uploaded crops.zip to project 15753.")
+            ET_upload(remote, 17109, zip_path_raw)
+            logging.info(f"Uploaded crops.zip to project 17109.")
             
                         
 
