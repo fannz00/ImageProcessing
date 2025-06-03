@@ -70,8 +70,8 @@ def upload_all_zips(remote, base_folder):
 
 if __name__ == "__main__":
     # Define username and password
-    USERNAME = 'fbrodbek@geomar.de'
-    PASSWORD = 'CopepodC0nspiracy!'
+    USERNAME = 'your username here'  # Replace with your actual username
+    PASSWORD = 'your password here'  # Replace with your actual password
 
     # remote = login_to_ecotaxa(USERNAME, PASSWORD)
     # if remote:
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     remote = login_to_ecotaxa(USERNAME, PASSWORD)
     if remote:
-        output_base_folder = '/home/fanny/EcoTaxa'
+        output_base_folder = '/home/fanny/EcoTaxa2'
         upload_all_zips(remote, output_base_folder)
     else:
         logging.error("Failed to log into EcoTaxa. Exiting...")
