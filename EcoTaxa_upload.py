@@ -70,8 +70,8 @@ def upload_all_zips(remote, base_folder):
 
 if __name__ == "__main__":
     # Define username and password
-    USERNAME = 'fbrodbek@geomar.de'
-    PASSWORD = 'CopepodC0nspiracy!'
+    USERNAME = 'your username'
+    PASSWORD = 'your password'
 
     # remote = login_to_ecotaxa(USERNAME, PASSWORD)
     # if remote:
