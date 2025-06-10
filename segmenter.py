@@ -11,7 +11,7 @@ import logging
 
 from reader import run_reader, ReaderOutput, profiled_run_reader
 from bg_correction import run_bg_correction
-from deconvolution import profiled_run_deconvolution
+from deconvolution import run_deconvolution, profiled_run_deconvolution
 from detection import run_detection, DetectionSettings
 
 import tkinter as tk
@@ -42,6 +42,7 @@ def compute_radius(files):
     Returns:
         int: The computed radius that covers the desired amount of background pixels.
     """
+    print(files[:10])
     imgs = [cv.resize(cv.imread(file, cv.IMREAD_GRAYSCALE),(2560,2560)) for file in files[:10]]
     #print(imgs)
     bg = np.max(imgs, axis=0)
@@ -159,110 +160,114 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
     for file in files_unsorted:#tqdm(files_unsorted):
         if os.path.splitext(os.path.basename(file))[0] in segmented_files:
             continue
-        elif (file.endswith('.png') or file.endswith('.jpg')) and imghdr.what(file) is not None:
+        elif (file.endswith('.png') or file.endswith('.jpg') or file.endswith('.tif')) and imghdr.what(file) is not None:
             files.append(file)
     
     #post message about the status of already segmented images
     print(f'{len(segmented_files)} of {len(files)} images already segmented')
-    
-    try:
-        files.sort(
-            key=lambda x: float(os.path.basename(x).split("_")[0].split("-")[1]) #sort the "old" way
-            #key = timesort #the new way, thank you @Timm Schöning: applied 240801-19:14 (UTC+2)
-        )  # sort after time
-    except:
-        print("Key-based sort failed")
-        files.sort()
-    #files = [os.path.join(src_path, file) for i, file in enumerate(files)]
-    print('start segmentation...')
-    logging.info('start segmentation...')
-    #print(files[:10])
+    if len(files) == 0:
+        print("No images found to segment. Exiting...")
+        logging.info("No images found to segment. Exiting...")
+        return
+    else:
+        try:
+            files.sort(
+                key=lambda x: float(os.path.basename(x).split("_")[0].split("-")[1]) #sort the "old" way
+                #key = timesort #the new way, thank you @Timm Schöning: applied 240801-19:14 (UTC+2)
+            )  # sort after time
+        except:
+            print("Key-based sort failed")
+            files.sort()
+        #files = [os.path.join(src_path, file) for i, file in enumerate(files)]
+        print('start segmentation...')
+        logging.info('start segmentation...')
+        #print(files[:10])
 
-    radius = compute_radius(files)
-    print("Radius: ",radius)
+        radius = compute_radius(files)
+        print("Radius: ",radius)
 
-    manager = Manager()
-    settings = DetectionSettings(
-        data_path,  #data_path: str
-        raw_crop_path,  #crop_path: str
-        deconv_crop_path,
-        mask_path,
-        img_path,   #img_path: str
-        400,        #min_area_to_save: float
-        10,        #min_area_to_segment: float
-        1,          #n_sigma: float
-        False,       #save_bb_image: bool
-        True,       #save_crops: bool
-        True,       #equalize_hist: bool
-        False,       #resize: bool
-        True,       #clear_save_path: bool
-        True,       #mask_img: bool
-        radius,       #mask_radius: int
-    )
-
-    # Specify the path where you want to save the CSV file
-    csv_file_path = os.path.join(save_path,"settings.csv")
-
-    # Call the function to save the data class to the CSV file
-    save_detection_settings_to_csv(settings, csv_file_path, src_path)
-
-    batch_size = 200
-    batches = []
-    for i in range(len(files) // batch_size - 1):
-        batches.append(files[i * batch_size : (i + 1) * batch_size])
-    batches.append(files[batch_size * (len(files) // batch_size - 1) :])
-    batch_n = 0
-    for batch in batches:
-        batch_n += 1
-        print(f'Batch {batch_n} of {len(batches)}')
-        #logging.info(f'Batch {batch_n} of {len(batches)}')
-        start = time.perf_counter()
-        batch = [(img, i) for i, img in enumerate(batch)]
-        reader_output = ReaderOutput(len(batch), manager)
-        bg_output_queue = Queue(10)
-        deconv_output_queue = Queue(10)
-        corr_running = Value("i",1)
-        detect_running = Value("i",1)
-
-
-        # Thread(
-        #     target=run_reader, 
-        #     args=(batch, reader_output, 8, settings.resize)#input, output, n_threads
-        #     ).start()
-        # Use the profiled version in the thread
-        thread = Thread(
-            target=profiled_run_reader,  # Use the profiled version
-            args=(batch, reader_output, 8, settings.resize)
+        manager = Manager()
+        settings = DetectionSettings(
+            data_path,  #data_path: str
+            raw_crop_path,  #crop_path: str
+            deconv_crop_path,
+            mask_path,
+            img_path,   #img_path: str
+            400,        #min_area_to_save: float
+            10,        #min_area_to_segment: float
+            1,          #n_sigma: float
+            False,       #save_bb_image: bool
+            True,       #save_crops: bool
+            True,       #equalize_hist: bool
+            False,       #resize: bool
+            True,       #clear_save_path: bool
+            True,       #mask_img: bool
+            radius,       #mask_radius: int
         )
-        thread.start()
 
-        bg_size = 6
+        # Specify the path where you want to save the CSV file
+        csv_file_path = os.path.join(save_path,"settings.csv")
 
-        run_bg_correction(reader_output, bg_output_queue, bg_size, corr_running) 
+        # Call the function to save the data class to the CSV file
+        save_detection_settings_to_csv(settings, csv_file_path, src_path)
 
-        if deconvolution:
-            Thread(
-                target=profiled_run_deconvolution,
-                args=(bg_output_queue, deconv_output_queue, len(batch), 1), #last argument is deconv batch_size has to match with image batch size 
-            ).start()
-        else:
-            deconv_output_queue = bg_output_queue
-        
-        #print(len(batch))
-        n_cores = 8 #8 on Seavision
+        batch_size = 200
+        batches = []
+        for i in range(len(files) // batch_size - 1):
+            batches.append(files[i * batch_size : (i + 1) * batch_size])
+        batches.append(files[batch_size * (len(files) // batch_size - 1) :])
+        batch_n = 0
+        for batch in batches:
+            batch_n += 1
+            print(f'Batch {batch_n} of {len(batches)}')
+            #logging.info(f'Batch {batch_n} of {len(batches)}')
+            start = time.perf_counter()
+            batch = [(img, i) for i, img in enumerate(batch)]
+            reader_output = ReaderOutput(len(batch), manager)
+            bg_output_queue = Queue(10)
+            deconv_output_queue = Queue(10)
+            corr_running = Value("i",1)
+            detect_running = Value("i",1)
 
-        run_detection(deconv_output_queue, settings, n_cores, len(batch), detect_running)
 
-        end = time.perf_counter()
-        duration = end - start
-        print(f'Time per image: {duration / len(batch)}')
-        #logging.info(f'Time per image: {duration / len(batch)}')
-        #print(bg_output_queue.empty(),deconv_output_queue.empty())
-        #print(len(reader_output.images))
-        bg_output_queue.close()
-        deconv_output_queue.close()
-    print('finished segmentation...')
-    logging.info('finished segmentation...')
+            # Thread(
+            #     target=run_reader, 
+            #     args=(batch, reader_output, 8, settings.resize)#input, output, n_threads
+            #     ).start()
+            # Use the profiled version in the thread
+            thread = Thread(
+                target=run_reader,  # Use the profiled version
+                args=(batch, reader_output, 8, settings.resize)
+            )
+            thread.start()
+
+            bg_size = 6
+
+            run_bg_correction(reader_output, bg_output_queue, bg_size, corr_running) 
+
+            if deconvolution:
+                Thread(
+                    target=run_deconvolution,
+                    args=(bg_output_queue, deconv_output_queue, len(batch), 1), #last argument is deconv batch_size has to match with image batch size 
+                ).start()
+            else:
+                deconv_output_queue = bg_output_queue
+            
+            #print(len(batch))
+            n_cores = 8 #8 on Seavision
+
+            run_detection(deconv_output_queue, settings, n_cores, len(batch), detect_running)
+
+            end = time.perf_counter()
+            duration = end - start
+            print(f'Time per image: {duration / len(batch)}')
+            #logging.info(f'Time per image: {duration / len(batch)}')
+            #print(bg_output_queue.empty(),deconv_output_queue.empty())
+            #print(len(reader_output.images))
+            bg_output_queue.close()
+            deconv_output_queue.close()
+        print('finished segmentation...')
+        logging.info('finished segmentation...')
 
 def process_image_folders(source_paths, dest_base, deconvolution=True):
     """

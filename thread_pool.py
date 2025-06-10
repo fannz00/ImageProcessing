@@ -58,9 +58,9 @@ class ThreadPool:
         Args:
             index (int): The index of the worker thread for identification.
         """
-        # Create a profiler for each worker process
-        profiler = cProfile.Profile()
-        profiler.enable()
+        # # Create a profiler for each worker process
+        # profiler = cProfile.Profile()
+        # profiler.enable()
 
         sleep_counter = 0
         while True:
@@ -83,10 +83,10 @@ class ThreadPool:
                 self.func(job, index)
         
         # Disable profiling and dump stats to a file
-        profiler.disable()
-        profile_filename = f"profile_thread_{index}.prof"
-        profiler.dump_stats(profile_filename)
-        print(f"Thread {index} finished and profile saved to {profile_filename}")
+        # profiler.disable()
+        # profile_filename = f"profile_thread_{index}.prof"
+        # profiler.dump_stats(profile_filename)
+        # print(f"Thread {index} finished and profile saved to {profile_filename}")
 
         #print(f"Reader {index} quitting")
 

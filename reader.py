@@ -61,35 +61,37 @@ def read_img(output: ReaderOutput, input, thread_index=0):
 
     Args:
         output (ReaderOutput): The object to store the read image data.
-        input (tuple): A tuple containing the file path and the index to store the image.
+        input: Either a file path string or a tuple of (file_path, img_index)
         thread_index (int, optional): The index of the thread executing this function,
                                       used for logging purposes. Default is 0.
     """
-    file, img_index = input
+    if isinstance(input, tuple):
+        file, img_index = input
+    else:
+        file = input
+        img_index = thread_index  # fallback to using thread index as image index
+
     fn = os.path.basename(file)
-    # Check if the file size is 0 bytes
-    if os.path.getsize(file) == 0:
-        print(f'Thread {thread_index}: File {file}is an empty image file')
-        return
     try:
+        # Check if the file size is 0 bytes
+        if os.path.getsize(file) == 0:
+            print(f'Thread {thread_index}: File {file} is an empty image file')
+            return
+
         img = cv.imread(file, cv.IMREAD_GRAYSCALE)
         if img is None:
-            raise ValueError(f"Thread {thread_index}: File {file} is not a valid image.")
-        #if resize:
+            print(f"Thread {thread_index}: Failed to read image {file}")
+            return
+            
         img = cv.resize(img, (2560, 2560))
         output.add_output(img, fn, img_index)
     except Exception as e:
-        print('...exception occurred:', e)
-        
-
+        print(f'Thread {thread_index}: Exception occurred reading {file}: {str(e)}')
+        return
 
 def run_reader(files, output: ReaderOutput, n_threads: int, resize:bool):
     """
     Read multiple image files concurrently using a thread pool.
-
-    This function initializes a thread pool to read and process multiple image files,
-    adding each to the reader pool. It handles any exceptions that occur during task
-    addition and ensures all tasks are completed before stopping the pool.
 
     Args:
         files (iterable): An iterable of file paths to be read.
@@ -99,15 +101,24 @@ def run_reader(files, output: ReaderOutput, n_threads: int, resize:bool):
     """
     pool = ThreadPool(lambda input, index: read_img(output, input, index), 100)
     pool.start(n_threads)
-    for file in files:
-        #print(f"Adding file {file} to reader pool")
-        try:
-            pool.add_task(file)
-        except Exception as e:
-            print(f"Exception when adding file {file} to reader pool: {e}")
-        #print("Waiting for reader pool to finish")
-    print('all files in batch added to reader pool')
-    pool.stop(slow=True)
+    
+    try:
+        for i, file in enumerate(files):
+            try:
+                # Handle both string and tuple inputs
+                if isinstance(file, tuple):
+                    file_path = file[0]  # Extract the file path from tuple
+                else:
+                    file_path = file
+                pool.add_task((file_path, i))
+            except Exception as e:
+                print(f"Exception when adding file {file} to reader pool: {e}")
+        
+        print('all files in batch added to reader pool')
+    finally:
+        # Ensure pool is stopped even if exceptions occur
+        pool.stop(slow=True)
+        print("Reader pool stopped")
 
 def profiled_run_reader(batch, reader_output, num_threads, resize):
     # Set up the profiler
