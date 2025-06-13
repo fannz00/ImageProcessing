@@ -134,6 +134,20 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
         # Format the datetime to match required format '20230418-18023076'
         split_df['date-time'] = split_df['date-time'].dt.strftime('%Y%m%d-%H%M%S%f')
         split_df['index'] = split_df['index'].str.replace('.png', '', regex=False).astype(int)
+    
+    elif cruise == "PISCO_KOSMOS_2020_Peru":
+        headers = ["cruise", "dship_id", "instrument-date", "time", "pressure", "index"]
+        split_df.columns = headers
+        # Split instrument-date into instrument and date
+        split_df['instrument'] = split_df['instrument-date'].str.extract(r'([A-Za-z]+)')
+        split_df['date'] = split_df['instrument-date'].str.extract(r'(\d{8})')
+        split_df.drop('instrument-date', axis=1, inplace=True)
+        split_df['pressure'] = split_df['pressure'].str.replace(pressure_unit, '', regex=False).astype(float)       
+        # Convert and combine date and time columns to datetime format
+        split_df['date-time'] = pd.to_datetime(split_df['date'].astype(str) + split_df['time'].astype(str).str.replace('.', ''), format='%Y%m%d%H%M%S%f')
+        # Format the datetime to match required format '20230418-18023076'
+        split_df['date-time'] = split_df['date-time'].dt.strftime('%Y%m%d-%H%M%S%f')
+        split_df['index'] = split_df['index'].str.replace('.png', '', regex=False).astype(int)
 
     else:
         headers = ["cruise", "dship_id", "instrument", "pressure","date-time","index"]
@@ -1529,10 +1543,6 @@ def create_ecotaxa_zips(output_folder, df, profile_name, max_zip_size_mb=500, co
         crop_folder = os.path.join(output_folder, "EcoTaxa", crop_type)
         excluded_folder = os.path.join(output_folder, f"{crop_type}_excluded")
         
-        # Create folders
-        os.makedirs(crop_folder, exist_ok=True)
-        os.makedirs(excluded_folder, exist_ok=True)
-
         # Convert MultiIndex columns back to single level for processing
         df_single = df.copy()
         df_single.columns = df_single.columns.get_level_values('header')
@@ -1553,15 +1563,6 @@ def create_ecotaxa_zips(output_folder, df, profile_name, max_zip_size_mb=500, co
         # Prepare metadata DataFrame
         df_ET = df_single.drop(columns=['object_full_path'], errors='ignore')
         
-        # Move excluded files
-        for filename in os.listdir(source_folder):
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
-                if filename not in source_images:
-                    shutil.move(
-                        os.path.join(source_folder, filename),
-                        os.path.join(excluded_folder, filename)
-                    )
-
         # Get image paths for included files
         image_files = [f for f in os.listdir(source_folder) 
                       if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp'))]
@@ -1571,49 +1572,101 @@ def create_ecotaxa_zips(output_folder, df, profile_name, max_zip_size_mb=500, co
         groups = split_files_by_zip_size(image_paths, max_zip_size_mb, compression_ratio)
         print(f"Processing {len(groups)} groups for {source_folder}")
 
-        # Process each group
-        for i, group in enumerate(groups):
-            # Create part folder
-            part_folder = os.path.join(output_folder, "EcoTaxa", 
-                                     f"{crop_type}_part{i+1}_upload" if len(groups) > 1 else crop_type)
-            os.makedirs(part_folder, exist_ok=True)
-
-            # Copy/process images
-            for img_path in group:
-                dest_path = os.path.join(part_folder, os.path.basename(img_path))
-                if crop_type == 'deconv_crops' and add_scale_bar_to_deconv:
-                    add_scale_bar(img_path, dest_path, pixel_resolution, scale_length_mm)
-                else:
-                    shutil.copy2(img_path, dest_path)
-
-            # Filter and save metadata
-            part_images = [os.path.basename(fp) for fp in group]
-            part_metadata = df_ET[df_ET['img_file_name'].isin(part_images)]
-            
-            # Save TSV with dtype row
+        if len(groups) == 1:
+            # For single group, create TSV file directly in source folder
             metadata_file = f"ecotaxa_{profile_name}.tsv"
-            metadata_path = os.path.join(part_folder, metadata_file)
+            metadata_path = os.path.join(source_folder, metadata_file)
             
             # Get dtype information
-            dtypes = pd.Series(part_metadata.dtypes).map(lambda x: '[f]' if pd.api.types.is_numeric_dtype(x) else '[t]')
+            dtypes = pd.Series(df_ET.dtypes).map(lambda x: '[f]' if pd.api.types.is_numeric_dtype(x) else '[t]')
             
             # Create the TSV file with proper header and dtype row
             with open(metadata_path, 'w') as f:
-                # Write header row
-                f.write('\t'.join(part_metadata.columns) + '\n')
-                # Write dtype row
+                f.write('\t'.join(df_ET.columns) + '\n')
                 f.write('\t'.join(dtypes.values) + '\n')
                 
             # Write data rows
-            part_metadata.to_csv(metadata_path, sep='\t', index=False, mode='a', header=False)
+            df_ET.to_csv(metadata_path, sep='\t', index=False, mode='a', header=False)
 
-            # Create zip file
-            zip_path = f"{part_folder}.zip"
+            # Create zip file from original folder
+            zip_path = os.path.join(output_folder, f"{crop_type}.zip")
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, _, files in os.walk(part_folder):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, part_folder)
+                # Add all files from source folder
+                for file in os.listdir(source_folder):
+                    file_path = os.path.join(source_folder, file)
+                    if os.path.isfile(file_path):  # Only add files, not directories
+                        arcname = os.path.basename(file_path)
                         zipf.write(file_path, arcname)
             
-            print(f"Created zip file: {zip_path}")
+            print(f"Created zip file from source folder: {zip_path}")
+
+        else:
+            # Create folders for multiple groups
+            os.makedirs(crop_folder, exist_ok=True)
+            os.makedirs(excluded_folder, exist_ok=True)
+
+            # Move excluded files
+            for filename in os.listdir(source_folder):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+                    if filename not in source_images:
+                        shutil.move(
+                            os.path.join(source_folder, filename),
+                            os.path.join(excluded_folder, filename)
+                        )
+
+            # Process each group
+            for i, group in enumerate(groups):
+                # Create part folder
+                part_folder = os.path.join(output_folder, "EcoTaxa", 
+                                     f"{crop_type}_part{i+1}_upload" if len(groups) > 1 else crop_type)
+                os.makedirs(part_folder, exist_ok=True)
+
+                # Copy/process images
+                for img_path in group:
+                    dest_path = os.path.join(part_folder, os.path.basename(img_path))
+                    if crop_type == 'deconv_crops' and add_scale_bar_to_deconv:
+                        add_scale_bar(img_path, dest_path, pixel_resolution, scale_length_mm)
+                    else:
+                        shutil.copy2(img_path, dest_path)
+
+                # Filter and save metadata
+                part_images = [os.path.basename(fp) for fp in group]
+                part_metadata = df_ET[df_ET['img_file_name'].isin(part_images)]
+                
+                # Save TSV with dtype row
+                metadata_file = f"ecotaxa_{profile_name}.tsv"
+                metadata_path = os.path.join(part_folder, metadata_file)
+                
+                # Get dtype information
+                dtypes = pd.Series(part_metadata.dtypes).map(lambda x: '[f]' if pd.api.types.is_numeric_dtype(x) else '[t]')
+                
+                # Create the TSV file with proper header and dtype row
+                with open(metadata_path, 'w') as f:
+                    # Write header row
+                    f.write('\t'.join(part_metadata.columns) + '\n')
+                    # Write dtype row
+                    f.write('\t'.join(dtypes.values) + '\n')
+                    
+                # Write data rows
+                part_metadata.to_csv(metadata_path, sep='\t', index=False, mode='a', header=False)
+
+                # Create zip file
+                zip_path = f"{part_folder}.zip"
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, _, files in os.walk(part_folder):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            arcname = os.path.relpath(file_path, part_folder)
+                            zipf.write(file_path, arcname)
+            
+                print(f"Created zip file: {zip_path}")
+                
+                # Delete the unzipped folder after creating zip
+                shutil.rmtree(part_folder)
+                print(f"Deleted unzipped folder: {part_folder}")
+
+        # Delete the EcoTaxa folder structure if empty
+        ecotaxa_folder = os.path.join(output_folder, "EcoTaxa")
+        if os.path.exists(ecotaxa_folder) and not os.listdir(ecotaxa_folder):
+            shutil.rmtree(ecotaxa_folder)
+            print(f"Deleted empty EcoTaxa folder structure: {ecotaxa_folder}")
