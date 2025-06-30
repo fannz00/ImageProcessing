@@ -29,6 +29,19 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 import logging
 
+import torch
+from torch.utils.data import DataLoader
+from transformers import ViTForImageClassification
+
+import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
+
+from datasets import Features, Image as ImageFeature, Value
+from datasets import Dataset, Features, Image as ImageFeature, Value
+
+# For type hints (optional but recommended)
+from typing import Optional, Union
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[
     logging.FileHandler("analyze_profiles.log"),
@@ -52,6 +65,25 @@ database = 'pisco_crops_db'
 # Create an engine that connects to the PostgreSQL server
 engine = create_engine(f'postgresql://{username}:{password}@{host}:{port}/{database}')
 logging.info("Connected to the database")
+
+
+def extract_lat_lon_from_profile(profile_name):
+    """
+    Extract latitude and longitude from the profile name.
+    Example: 'M181-252-1_CTD-066_00deg00S-032deg00W_20220514-1919'
+    Returns: (lat, lon) as floats
+    """
+    match = re.search(r'(\d+)°(\d+)([NS])-(\d+)°(\d+)([EW])', profile_name)
+    if match:
+        lat_deg, lat_min, lat_dir, lon_deg, lon_min, lon_dir = match.groups()
+        lat = int(lat_deg) + int(lat_min) / 60.0
+        lon = int(lon_deg) + int(lon_min) / 60.0
+        if lat_dir == 'S':
+            lat *= -1
+        if lon_dir == 'W':
+            lon *= -1
+        return lat, lon
+    return None, None
 
 def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = 'dbar', absolute_pressure:bool = True, cruise:str = None):
     """
@@ -84,11 +116,23 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
     id = 1
     for file in tqdm(files):
         try:
+            # Define which columns should be strings (filename is column 2)
+            string_columns = [1]  # Add other string column indices if needed
+            
+            # Read CSV with dtype specifications
             df = pd.read_csv(file, delimiter=",", header=None)
-            if len(df.columns) == 44:#was 8
-                df.insert(0,'',id)            
+            
+            if len(df.columns) == 44:
+                # Convert non-string columns to numeric
+                for i in range(len(df.columns)):
+                    if i not in string_columns:
+                        df[i] = pd.to_numeric(df[i], errors='coerce')
+                    else:
+                        df[i] = df[i].astype(str)
+                        
+                df.insert(0, 'source_file_id', id)
                 dataframes.append(df)
-                id+=1
+                id += 1
             else:
                 continue
         except EmptyDataError:
@@ -116,6 +160,7 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
     #df.drop("saved", axis=1, inplace=True)
 
     # Split the 'filename' column SO298_298-6-1_PISCO2_0009.82dbar-02.00S-089.00W-28.54C_20230418-18023076_13.png
+    df['filename'] = df['filename'].astype(str)
     split_df = df['filename'].str.split('_', expand=True)
     if small:# bug fix for segmenter where small objects are saved with _mask.png extension instead of .png: needs to be fixed if segmenter is fixed
         headers = ["cruise", "dship_id", "instrument", "pressure", "mask_ext"]
@@ -149,14 +194,26 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
         split_df['date-time'] = split_df['date-time'].dt.strftime('%Y%m%d-%H%M%S%f')
         split_df['index'] = split_df['index'].str.replace('.png', '', regex=False).astype(int)
 
-    else:
-        headers = ["cruise", "dship_id", "instrument", "pressure","date-time","index"]
+    elif cruise == "M181":
+        headers = ["date-time", "pressure", "temperature", "index"]
         split_df.columns = headers
-        split_cols = split_df['pressure'].str.split('-', expand=True)
-        split_df[['pressure', 'lat', 'lon', 'temperature']] = split_cols
         split_df['pressure'] = split_df['pressure'].str.replace(pressure_unit, '', regex=False).astype(float)
         split_df['temperature'] = split_df['temperature'].str.replace('C', '', regex=False).astype(float)
         split_df['index'] = split_df['index'].str.replace('.png', '', regex=False).astype(int)
+
+
+    else:
+        try:
+            headers = ["cruise", "dship_id", "instrument", "pressure","date-time","index"]
+            split_df.columns = headers
+            split_cols = split_df['pressure'].str.split('-', expand=True)
+            split_df[['pressure', 'lat', 'lon', 'temperature']] = split_cols
+            split_df['pressure'] = split_df['pressure'].str.replace(pressure_unit, '', regex=False).astype(float)
+            split_df['temperature'] = split_df['temperature'].str.replace('C', '', regex=False).astype(float)
+            split_df['index'] = split_df['index'].str.replace('.png', '', regex=False).astype(int)
+           
+        except ValueError:
+            print(f"Error processing file {file} . Please check the format of the 'filename' column.")
 
     # Concatenate the new columns with the original DataFrame
     df = pd.concat([split_df, df], axis=1)
@@ -176,6 +233,7 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
     df.rename(columns={'pressure': 'pressure [dbar]'}, inplace=True)
 
     # Sort the DataFrame by the 'date-time' column
+    print(df.head())
     df = df.sort_values(by=['date-time','index'], ascending=True)
     df.reset_index(drop=True, inplace=True)
 
@@ -216,7 +274,7 @@ def get_ctd_profile_id(cruise_base: str, profile: str) -> str:
                     return ctd_id
                     
     except FileNotFoundError:
-        print(f"Warning: Metadata CSV not found for {profile}")
+        print(f"Warning: Metadata CSV not found: {csv_path}")
     except Exception as e:
         print(f"Error reading metadata for {profile}: {str(e)}")
     
@@ -241,31 +299,41 @@ def add_ctd_data(ctd_data_loc:str, crop_df):
     #crop_df.drop('depth [m]',axis=1)
     # Reading the specified header line (line 124) to extract column names
     def find_header_and_data_start(file_path):
-        with open(file_path, 'r') as file:
-            for line_num, line in enumerate(file):
-                line = line.strip()
-                # Find the header line that starts with "Columns = "
-                if line.startswith('Columns  ='):
-                    header_line = line
-                    column_names = line.split(' = ')[1].split(':')
-                    # Read next line to check for data start
-                    next_line = next(file).strip()
-                    # Try to convert first element to float to verify it's a data row
-                    try:
-                        float(next_line.split()[0])
-                        return line_num + 1, column_names
-                    except ValueError:
-                        continue
+        try:
+            with open(file_path, 'r') as file:
+                # Read the first 10 lines to find the header
+                for line_num, line in enumerate(file):
+                    line = line.strip()
+                    # Find the header line that starts with "Columns = "
+                    if line.startswith('Columns  ='):
+                        header_line = line
+                        column_names = line.split(' = ')[1].split(':')
+                        # Read next line to check for data start
+                        next_line = next(file).strip()
+                        # Try to convert first element to float to verify it's a data row
+                        try:
+                            float(next_line.split()[0])
+                            return line_num + 1, column_names
+                        except ValueError:
+                            continue
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File not found: {file_path}")
+            
         return None, None
     
-    data_start_line, column_names = find_header_and_data_start(ctd_data_loc)
+    try:
+        data_start_line, column_names = find_header_and_data_start(ctd_data_loc)
+    except Exception as e:
+        print(f"Error reading CTD data file: {e}")
+        return crop_df  # Return original DataFrame if error occurs
+    
     if data_start_line is not None:
         ctd_df = pd.read_csv(ctd_data_loc,
                         delim_whitespace=True, 
                         header=None, 
                         skiprows=data_start_line, 
                         names=column_names)
-    else:
+    else: 
         raise ValueError("Could not find valid header and data section in file")
 
     ctd_df['z_factor']=ctd_df['z']/ctd_df['p']
@@ -306,16 +374,206 @@ def add_ctd_data(ctd_data_loc:str, crop_df):
     return crop_df
 
 def add_prediction(crop_df, prediction_df):
-        
-    # Sort both DataFrames by 'filename'
-    crop_df_sorted = crop_df.sort_values(by='filename').reset_index(drop=True)
-    prediction_df_sorted = prediction_df.sort_values(by='filename').reset_index(drop=True)
-
-    # Concatenate data frames
-    combined_df = pd.concat([crop_df_sorted, prediction_df_sorted], axis=1)
+    """
+    Merge prediction DataFrame with crop DataFrame based on filename.
     
-    logging.info('Prediction data added to crop_df')
-    return combined_df
+    Args:
+        crop_df (pd.DataFrame): DataFrame containing crop data
+        prediction_df (pd.DataFrame): DataFrame containing predictions
+        
+    Returns:
+        pd.DataFrame: Merged DataFrame with predictions added to crop data
+        
+    Raises:
+        ValueError: If DataFrames have different lengths or missing filename column
+    """
+    # Verify both DataFrames have filename column
+    if 'filename' not in crop_df.columns or 'filename' not in prediction_df.columns:
+        raise ValueError("Both DataFrames must have 'filename' column")
+        
+    # Verify DataFrames have same length
+    if len(crop_df) != len(prediction_df):
+        raise ValueError(f"DataFrames have different lengths: {len(crop_df)} vs {len(prediction_df)}")
+    
+    # Merge DataFrames on filename
+    merged_df = pd.merge(
+        crop_df,
+        prediction_df,
+        on='filename',
+        how='left',
+        validate='1:1'  # Ensures one-to-one merge
+    )
+    
+    # Verify no rows were lost in merge
+    if len(merged_df) != len(crop_df):
+        raise ValueError("Rows were lost during merge. Check for duplicate filenames.")
+        
+    logging.info('Predictions added to crop_df')
+    return merged_df
+   
+
+def resize_to_larger_edge(image, target_size):
+    # Get the original dimensions of the image
+    original_width, original_height = image.size
+    
+    # Determine which dimension is larger
+    larger_edge = max(original_width, original_height)
+    
+    # Compute the scale factor to resize the larger edge to the target size
+    scale_factor = target_size / larger_edge
+    
+    # Compute new dimensions
+    new_width = int(original_width * scale_factor)
+    new_height = int(original_height * scale_factor)
+    
+    try:
+    # Resize the image
+        resized_image = F.resize(image, (new_height, new_width))
+    except(ValueError):
+        #print(image.size,new_height,new_width)
+        logging.info(f"Skipping: {image}: image size: {image.size}, new height: {new_height}, new width: {new_width}")
+        return None        
+    return resized_image
+
+def custom_image_processor(image, target_size=(224, 224), padding_color=255, size_bar=False):
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+
+    if size_bar:
+        # Step 0: Remove scale bar by cropping the bottom 50 pixels
+        width, height = image.size
+        image = image.crop((0, 0, width, height - 50))  # Crop out the scale bar area
+    
+    # Step 1: Resize the image
+    resized_image = resize_to_larger_edge(image,224)
+
+    if resized_image is None:  # Skip processing if resizing failed
+        #print(f"Skipping image due to resize failure: {image.size}")
+        return None  # This allows to filter out bad images later
+
+    #Step 2: Calculate padding
+    new_width, new_height = resized_image.size
+    padding_left = (target_size[0] - new_width) // 2
+    padding_right = target_size[0] - new_width - padding_left
+    padding_top = (target_size[1] - new_height) // 2
+    padding_bottom = target_size[1] - new_height - padding_top
+
+    # Step 3: Apply padding
+    padding = (padding_left, padding_top, padding_right, padding_bottom)
+    pad_transform = transforms.Pad(padding, fill=padding_color)
+    padded_image = pad_transform(resized_image)
+
+    # Step 4: Apply other transformations
+    transform_chain = transforms.Compose([
+        transforms.RandomRotation(degrees=180,fill=255),
+        transforms.ToTensor(),  # Convert to tensor
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # Normalize
+    ])
+    
+    # Apply the transformations
+    return transform_chain(padded_image)
+
+# Example function to process a batch
+def process_batch(example_batch):
+    # Process each image in the batch
+    processed_images = [
+        custom_image_processor(img) for img in example_batch['image']
+        if custom_image_processor(img) is not None
+        ]
+    
+    # Convert to a batch tensor
+    inputs = torch.stack(processed_images)
+    
+    # Include labels (assuming they are present and you want to keep them)
+    return {'pixel_values': inputs, 'label': example_batch['label']}
+
+def load_unclassified_images(data_dir):
+    """
+    Load unclassified images from a directory, filtering for valid image files.
+    
+    Args:
+        data_dir (str): Path to directory containing images
+        
+    Returns:
+        Dataset: HuggingFace dataset containing images
+    """
+    # Define valid image extensions
+    valid_extensions = ('.jpg', '.jpeg', '.png', '.tif', '.tiff')
+    
+    # List all files in the directory and filter for valid image files
+    image_files = [
+        os.path.join(data_dir, f) 
+        for f in os.listdir(data_dir) 
+        if os.path.isfile(os.path.join(data_dir, f))
+        and f.lower().endswith(valid_extensions)
+    ]
+
+    # Prepare data for the dataset
+    data = {
+        'image': image_files,
+        'label': image_files 
+    }
+    
+    features = Features({
+        'image': ImageFeature(),
+        'label': Value('string')
+    })
+    
+    # Create the dataset
+    dataset = Dataset.from_dict(data, features=features)
+    return dataset
+
+def get_predictions_with_entropy_ood(dataset, save_dir, entropy_threshold=1.0, temperature=1.5, batch_size=64):
+    print("Initializing model for predictions")
+    vit = ViTForImageClassification.from_pretrained(save_dir)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    vit.to(device)
+    vit.eval()
+    
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+        prefetch_factor=2
+    )
+    
+    predictions = []
+    filenames = []
+    probabilities = []
+    entropy_scores = []
+    ood_flags = []
+    
+    with torch.amp.autocast('cuda'):
+        for batch in tqdm(dataloader, desc="Processing dataset"):
+            inputs = batch['pixel_values'].to(device, non_blocking=True)
+            
+            with torch.no_grad():
+                outputs = vit(pixel_values=inputs)
+            
+            # Apply temperature scaling
+            scaled_logits = outputs.logits / temperature
+            probs = torch.nn.functional.softmax(scaled_logits, dim=-1)
+            
+            # Calculate entropy
+            entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1)
+            
+            top_probs, top_indices = torch.topk(probs, 5, dim=-1)
+            
+            batch_labels = [[vit.config.id2label[idx.item()] for idx in indices] 
+                          for indices in top_indices]
+            
+            # Flag samples as OOD if entropy is above threshold
+            batch_ood = (entropy > entropy_threshold).cpu().numpy()
+            
+            predictions.extend(batch_labels)
+            filenames.extend(batch['label'])
+            probabilities.extend(top_probs.cpu().numpy())
+            entropy_scores.extend(entropy.cpu().numpy())
+            ood_flags.extend(batch_ood)
+    
+    return filenames, predictions, probabilities, entropy_scores, ood_flags
 
 def plot_histogram(df, plot_path:str):
     """
@@ -751,7 +1009,7 @@ def create_log_df(file_path):
             # Parse line according to message type
             if line.startswith("b'TT"):
                 temp_values = line[2:].rstrip("'").split('_')
-                if len(temp_values) != 14: #adding this for debugging...
+                if len(temp_values) != 20: #adding this for debugging...
                     logging.warning(
                         f"Unexpected TT line format: {line}. "
                         f"Parsing TT data: {temp_values}, "
@@ -797,7 +1055,7 @@ def create_log_df(file_path):
 
     # Replace NaN values in 'relock' and 'restart' columns with False
     df[['restart', 'relock']] = df[['restart', 'relock']].fillna(False).astype(bool)
-    cols = ['TT', 'T1', 'T2', 'TH']  # list of your column names
+    cols = ['TT', 'T1', 'T2', 'C1','C2','TH']  # list of your column names
     for col in cols:
         df[col] = df[col].interpolate()
     
@@ -1061,7 +1319,7 @@ def filter_defect_crops(df):
     df_filtered.reset_index(drop=True, inplace=True)
     return df_filtered
 
-def rename_for_ecotaxa(df, mapping_csv=None, sep="\t", sample_profile_id=None):    
+def rename_for_ecotaxa(df, mapping_csv=None, sep="\t", sample_profile_id=None, predicted=False):    
     if mapping_csv is not None:
         # Load CSV files
         polytaxo_classes_df = pd.read_csv(mapping_csv, sep=sep)
@@ -1169,6 +1427,10 @@ def rename_for_ecotaxa(df, mapping_csv=None, sep="\t", sample_profile_id=None):
         df = pd.concat([df.iloc[:0], pd.DataFrame([dtype_row], columns=df.columns), df.iloc[0:]]).reset_index(drop=True)
 
     else:
+        if predicted:
+            # Add annotation status
+            df['object_annotation_status'] = 'predicted'
+
         # Adjust header names without mapping
         rename_mapping = {
             'pressure [dbar]': 'object_pressure',
@@ -1215,6 +1477,18 @@ def rename_for_ecotaxa(df, mapping_csv=None, sep="\t", sample_profile_id=None):
             'restart': 'object_restart',
             'relock': 'object_relock',
             'TAG_event': 'object_TAG_event',
+            'top1': 'object_annotation_category',
+            'top2': 'object_annotation_category_2',
+            'top3': 'object_annotation_category_3',
+            'top4': 'object_annotation_category_4',
+            'top5': 'object_annotation_category_5',
+            'prob1': 'object_prob_1',
+            'prob2': 'object_prob_2',
+            'prob3': 'object_prob_3',
+            'prob4': 'object_prob_4',
+            'prob5': 'object_prob_5',
+            'is_ood': 'object_is_ood',
+            'entropy': 'object_entropy',
             # Add any other columns that need renaming
         }
         df.rename(columns=rename_mapping, inplace=True)
@@ -1255,6 +1529,10 @@ def rename_for_ecotaxa(df, mapping_csv=None, sep="\t", sample_profile_id=None):
             'object_interpolated_o',
             'object_interpolated_chl',
             'object_interpolated_t',
+            'object_entropy',
+            'object_annotation_category',
+            'object_annotation_status',
+            'object_prob_1',
             #'img_rank',
             'object_id',
             'sample_cruise',
@@ -1327,7 +1605,7 @@ def get_ctd_profile_id(cruise_base: str, profile: str) -> str:
                     return ctd_id
                     
     except FileNotFoundError:
-        print(f"Warning: Metadata CSV not found for {profile}")
+        print(f"Warning: Metadata CSV not found for {csv_path}")
     except Exception as e:
         print(f"Error reading metadata for {profile}: {str(e)}")
     
@@ -1564,9 +1842,12 @@ def create_ecotaxa_zips(output_folder, df, profile_name, max_zip_size_mb=500, co
         df_ET = df_single.drop(columns=['object_full_path'], errors='ignore')
         
         # Get image paths for included files
-        image_files = [f for f in os.listdir(source_folder) 
-                      if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp'))]
-        image_paths = [os.path.join(source_folder, f) for f in image_files]
+        # image_files = [f for f in os.listdir(source_folder) 
+        #               if f.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp'))]
+        # image_paths = [os.path.join(source_folder, f) for f in image_files]
+        # Get image paths for included files
+        image_paths = [os.path.join(source_folder, f) for f in source_images 
+                    if os.path.exists(os.path.join(source_folder, f))]
 
         # Split into groups if needed
         groups = split_files_by_zip_size(image_paths, max_zip_size_mb, compression_ratio)
@@ -1617,7 +1898,7 @@ def create_ecotaxa_zips(output_folder, df, profile_name, max_zip_size_mb=500, co
             # Process each group
             for i, group in enumerate(groups):
                 # Create part folder
-                part_folder = os.path.join(output_folder, "EcoTaxa", 
+                part_folder = os.path.join(output_folder,  
                                      f"{crop_type}_part{i+1}_upload" if len(groups) > 1 else crop_type)
                 os.makedirs(part_folder, exist_ok=True)
 
