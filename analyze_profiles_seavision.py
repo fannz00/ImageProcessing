@@ -3,6 +3,8 @@
 
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -233,7 +235,7 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
     df.rename(columns={'pressure': 'pressure [dbar]'}, inplace=True)
 
     # Sort the DataFrame by the 'date-time' column
-    print(df.head())
+    #print(df.head())
     df = df.sort_values(by=['date-time','index'], ascending=True)
     df.reset_index(drop=True, inplace=True)
 
@@ -465,7 +467,7 @@ def custom_image_processor(image, target_size=(224, 224), padding_color=255, siz
 
     # Step 4: Apply other transformations
     transform_chain = transforms.Compose([
-        transforms.RandomRotation(degrees=180,fill=255),
+        #transforms.RandomRotation(degrees=180,fill=255),
         transforms.ToTensor(),  # Convert to tensor
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])  # Normalize
     ])
@@ -487,39 +489,43 @@ def process_batch(example_batch):
     # Include labels (assuming they are present and you want to keep them)
     return {'pixel_values': inputs, 'label': example_batch['label']}
 
-def load_unclassified_images(data_dir):
+def load_unclassified_images(data_dir, filenames=None):
     """
     Load unclassified images from a directory, filtering for valid image files.
     
     Args:
         data_dir (str): Path to directory containing images
+        filenames (list, optional): List of filenames (basenames) to include. If None, include all.
         
     Returns:
         Dataset: HuggingFace dataset containing images
     """
-    # Define valid image extensions
     valid_extensions = ('.jpg', '.jpeg', '.png', '.tif', '.tiff')
-    
-    # List all files in the directory and filter for valid image files
-    image_files = [
-        os.path.join(data_dir, f) 
-        for f in os.listdir(data_dir) 
-        if os.path.isfile(os.path.join(data_dir, f))
-        and f.lower().endswith(valid_extensions)
-    ]
+    if filenames is not None:
+        filenames_set = set(filenames)
+        image_files = [
+            os.path.join(data_dir, f)
+            for f in os.listdir(data_dir)
+            if os.path.isfile(os.path.join(data_dir, f))
+            and f.lower().endswith(valid_extensions)
+            and f in filenames_set
+        ]
+    else:
+        image_files = [
+            os.path.join(data_dir, f)
+            for f in os.listdir(data_dir)
+            if os.path.isfile(os.path.join(data_dir, f))
+            and f.lower().endswith(valid_extensions)
+        ]
 
-    # Prepare data for the dataset
     data = {
         'image': image_files,
         'label': image_files 
     }
-    
     features = Features({
         'image': ImageFeature(),
         'label': Value('string')
     })
-    
-    # Create the dataset
     dataset = Dataset.from_dict(data, features=features)
     return dataset
 
@@ -527,6 +533,7 @@ def get_predictions_with_entropy_ood(dataset, save_dir, entropy_threshold=1.0, t
     print("Initializing model for predictions")
     vit = ViTForImageClassification.from_pretrained(save_dir)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
     vit.to(device)
     vit.eval()
     
@@ -570,6 +577,66 @@ def get_predictions_with_entropy_ood(dataset, save_dir, entropy_threshold=1.0, t
             predictions.extend(batch_labels)
             filenames.extend(batch['label'])
             probabilities.extend(top_probs.cpu().numpy())
+            entropy_scores.extend(entropy.cpu().numpy())
+            ood_flags.extend(batch_ood)
+    
+    return filenames, predictions, probabilities, entropy_scores, ood_flags
+
+def get_predictions_with_entropy_ood_binary(dataset, save_dir, entropy_threshold=1.0, temperature=1.5, batch_size=64):
+    """
+    Get predictions with OOD detection for binary classifier
+    """
+    print("Initializing model for predictions")
+    # Load binary classifier model
+    vit = ViTForImageClassification.from_pretrained(save_dir)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    vit.to(device)
+    vit.eval()
+    
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+        prefetch_factor=2
+    )
+    
+    predictions = []
+    filenames = []
+    probabilities = []
+    entropy_scores = []
+    ood_flags = []
+    
+    with torch.amp.autocast('cuda'):
+        for batch in tqdm(dataloader, desc="Processing dataset"):
+            inputs = batch['pixel_values'].to(device, non_blocking=True)
+            
+            with torch.no_grad():
+                outputs = vit(pixel_values=inputs)
+            
+            # Apply temperature scaling
+            scaled_logits = outputs.logits / temperature
+            probs = torch.nn.functional.softmax(scaled_logits, dim=-1)
+            
+            # Calculate entropy (for binary, max entropy is ln(2) ≈ 0.693)
+            entropy = -torch.sum(probs * torch.log(probs + 1e-10), dim=-1)
+            
+            # For binary classification, we only need top 1
+            top_probs, top_indices = torch.max(probs, dim=-1)
+            
+            # Get predicted labels
+            batch_labels = [[vit.config.id2label[idx.item()]] 
+                        for idx in top_indices]
+            
+            # Flag samples as OOD if entropy is above threshold
+            # For binary classification, you might want to lower the threshold
+            batch_ood = (entropy > entropy_threshold).cpu().numpy()
+            
+            predictions.extend(batch_labels)
+            filenames.extend(batch['label'])
+            probabilities.extend(top_probs.unsqueeze(-1).cpu().numpy())  # Make it 2D
             entropy_scores.extend(entropy.cpu().numpy())
             ood_flags.extend(batch_ood)
     
@@ -979,7 +1046,7 @@ def parse_line(line, row):
         row['T2']= float(temp_values[5])
         row['TH']= float(temp_values[7])
 
-def create_log_df(file_path):
+def create_log_df(file_path, cruise = None):
     # Read the log file
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -1006,32 +1073,60 @@ def create_log_df(file_path):
                 temp_data = {}
             temp_data['timestamp'] = line
         else:
-            # Parse line according to message type
-            if line.startswith("b'TT"):
-                temp_values = line[2:].rstrip("'").split('_')
-                if len(temp_values) != 20: #adding this for debugging...
-                    logging.warning(
-                        f"Unexpected TT line format: {line}. "
-                        f"Parsing TT data: {temp_values}, "
-                        f"number of values: {len(temp_values)}"
-                    )
-                    logging.info(f"skipping line in file {file_path}: {line}")
-                    continue
-                else:
-                    temp_data['TT'] = float(temp_values[1])
-                    temp_data['T1'] = float(temp_values[3])
-                    temp_data['T2'] = float(temp_values[5])
-                    temp_data['C1'] = float(temp_values[7])
-                    temp_data['C2'] = float(temp_values[9])
-                    temp_data['TH'] = float(temp_values[11])
-            elif line.startswith('Restart Tag'):
-                temp_data['restart'] = True
-                indicator = 0
-            elif line == 'Relock':
-                temp_data['relock'] = True
-                indicator = counter
-                counter += 1
-            temp_data['TAG_event'] = indicator
+            if cruise == 'M181':
+                # Parse line according to message type
+                if line.startswith("b'TT"):
+                    temp_values = line[2:].rstrip("'").split('_')
+                    if len(temp_values) != 8: #adding this for debugging...
+                        logging.warning(
+                            f"Unexpected TT line format: {line}. "
+                            f"Parsing TT data: {temp_values}, "
+                            f"number of values: {len(temp_values)}"
+                        )
+                        logging.info(f"skipping line in file {file_path}: {line}")
+                        continue
+                    else:
+                        temp_data['TT'] = float(temp_values[1])
+                        temp_data['T1'] = float(temp_values[3])
+                        temp_data['T2'] = float(temp_values[5])
+                        temp_data['TH'] = float(temp_values[7])
+                        
+                elif line.startswith('Restart Tag'):
+                    temp_data['restart'] = True
+                    indicator = 0
+                elif line == 'Relock':
+                    temp_data['relock'] = True
+                    indicator = counter
+                    counter += 1
+                temp_data['TAG_event'] = indicator
+
+            else: 
+                # Parse line according to message type
+                if line.startswith("b'TT"):
+                    temp_values = line[2:].rstrip("'").split('_')
+                    if len(temp_values) != 20: #adding this for debugging...
+                        logging.warning(
+                            f"Unexpected TT line format: {line}. "
+                            f"Parsing TT data: {temp_values}, "
+                            f"number of values: {len(temp_values)}"
+                        )
+                        logging.info(f"skipping line in file {file_path}: {line}")
+                        continue
+                    else:
+                        temp_data['TT'] = float(temp_values[1])
+                        temp_data['T1'] = float(temp_values[3])
+                        temp_data['T2'] = float(temp_values[5])
+                        temp_data['C1'] = float(temp_values[7])
+                        temp_data['C2'] = float(temp_values[9])
+                        temp_data['TH'] = float(temp_values[11])
+                elif line.startswith('Restart Tag'):
+                    temp_data['restart'] = True
+                    indicator = 0
+                elif line == 'Relock':
+                    temp_data['relock'] = True
+                    indicator = counter
+                    counter += 1
+                temp_data['TAG_event'] = indicator
 
     # If there is data waiting after the last line, add it
     if temp_data:
@@ -1055,7 +1150,10 @@ def create_log_df(file_path):
 
     # Replace NaN values in 'relock' and 'restart' columns with False
     df[['restart', 'relock']] = df[['restart', 'relock']].fillna(False).astype(bool)
-    cols = ['TT', 'T1', 'T2', 'C1','C2','TH']  # list of your column names
+    if cruise == 'M181':
+        cols = ['TT', 'T1', 'T2', 'TH']
+    else:
+        cols = ['TT', 'T1', 'T2', 'C1','C2','TH']  # list of your column names
     for col in cols:
         df[col] = df[col].interpolate()
     
@@ -1068,7 +1166,7 @@ def calculate_umap_embeddings(df, reducer, scaler):
        # 'area', 
        # 'w', 
        # 'h', 
-       'esd', 
+    #    'esd', 
        # 'interpolated_s', 
        # 'interpolated_o',
        # 'interpolated_t', 
@@ -1100,8 +1198,8 @@ def calculate_umap_embeddings(df, reducer, scaler):
        'object_local_centroid_col', 
        'object_local_centroid_row',
        'object_solidity', 
-       'TAG_event', 
-       'part_based_filter'
+    #    'TAG_event', 
+    #    'part_based_filter'
     ]
     df_selected = df[selected_features]
     
