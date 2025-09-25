@@ -70,21 +70,21 @@ def upload_all_zips(remote, base_folder):
 
 if __name__ == "__main__":
     # Define username and password
-    USERNAME = 'your username here'  # Replace with your actual username
-    PASSWORD = 'your password here'  # Replace with your actual password
-
-    # remote = login_to_ecotaxa(USERNAME, PASSWORD)
-    # if remote:
-    #     zip_path_raw = '/home/fanny/EcoTaxa/M181-066-1_CTD-024_03deg30S-007deg15E_20220428-1514_updated/crops1.zip'
-    #     zip_path_deconv = '/home/fanny/EcoTaxa/M181-005-1_CTD-002_16deg00S-011deg34E_20220422-0039_updated/deconv_crops.zip'
-    #     ET_upload(remote, zip_path_deconv)
-    #     ET_upload(remote, zip_path_raw)
-    # else:
-    #     logging.error("Failed to log into EcoTaxa. Exiting...")
+    USERNAME = 'fbrodbek@geomar.de'
+    PASSWORD = 'CopepodC0nspiracy!'
 
     remote = login_to_ecotaxa(USERNAME, PASSWORD)
     if remote:
-        output_base_folder = '/home/fanny/EcoTaxa2'
-        upload_all_zips(remote, output_base_folder)
+        zip_path_raw = '/home/fanny/EcoTaxa2/M181-011-1_CTD-005_13deg00S-012deg43E_20220422-2140_updated/crops.zip'
+        zip_path_deconv = '/home/fanny/EcoTaxa2/M181-011-1_CTD-005_13deg00S-012deg43E_20220422-2140_updated/deconv_crops.zip'
+        ET_upload(remote, 17108, zip_path_deconv)
+        #ET_upload(remote, 17109, zip_path_raw)
     else:
         logging.error("Failed to log into EcoTaxa. Exiting...")
+
+    # remote = login_to_ecotaxa(USERNAME, PASSWORD)
+    # if remote:
+    #     output_base_folder = '/home/fanny/EcoTaxa2'
+    #     upload_all_zips(remote, output_base_folder)
+    # else:
+    #     logging.error("Failed to log into EcoTaxa. Exiting...")
