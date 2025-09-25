@@ -131,7 +131,7 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0):
     #df = df.drop('filename', axis=1)
 
     df['esd'] = df['area'].apply(area_to_esd).round(2)
-    df['pressure'] = (df['pressure']-1)*10
+    df['pressure'] = (df['pressure'])*10
     df.rename(columns={'pressure': 'pressure [dbar]'}, inplace=True)
 
     # Sort the DataFrame by the 'date-time' column
