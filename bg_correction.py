@@ -27,12 +27,18 @@ def is_ready(img_index: int, input: ReaderOutput, n_bg_imgs):
     Returns:
         bool: True if the required background images are ready, False otherwise.
     """
-    start = (
-        img_index
-        if img_index + n_bg_imgs < len(input.images)
-        else len(input.images) - n_bg_imgs
-    )
-    for i in range(start, start + n_bg_imgs):
+    # Ensure we don't go out of bounds
+    start = max(0, img_index - n_bg_imgs + 1)
+    end = min(len(input.images), img_index + 1)
+    
+    # If we don't have enough images for background correction, skip
+    if end - start < 2:  # At least need current image + 1 background
+        return True
+    
+    # Check that all images in range are loaded and not None
+    for i in range(start, end):
+        if i < 0 or i >= len(input.images):
+            return False
         if input.images[i] is None:
             return False
     return True
@@ -63,31 +69,58 @@ def correct_img(
         None
     """
     n_bg_imgs *= 2
+    timeout = 60  # 60 seconds timeout to prevent infinite hanging
+    elapsed = 0
     while not is_ready(img_index, input, n_bg_imgs):
         time.sleep(0.1)
-    img, fn = input.images[img_index]
+        elapsed += 0.1
+        if elapsed > timeout:
+            print(f'Timeout waiting for image {img_index} to be ready. Skipping.')
+            output.put(([], [], [0, 0], 'TIMEOUT'))
+            return
+    
+    # Check if image at img_index is None (corrupted/failed to load)
+    if img_index >= len(input.images) or input.images[img_index] is None:
+        print(f'Skipping corrupted/missing image at index {img_index}')
+        output.put(([], [], [0, 0], 'CORRUPTED'))
+        return
+    
+    try:
+        img, fn = input.images[img_index]
+    except (IndexError, TypeError) as e:
+        print(f'Error accessing image {img_index}: {e}')
+        output.put(([], [], [0, 0], 'ERROR'))
+        return
+    
     mean = np.mean(img)
     stdev = np.std(img)
-    if stdev >2:
-        start = (img_index if img_index + n_bg_imgs < len(input.images) else len(input.images) - n_bg_imgs)
+    if stdev > 2:
+        # Find valid background images
+        start = max(0, img_index - n_bg_imgs + 1)
+        end = min(len(input.images), img_index + 1)
+        
         bg_imgs: list[np.ndarray] = []
-        for i in range(1, n_bg_imgs):
-            bg_imgs.append(
-                np.min([input.images[start + i - 1][0], input.images[start + i][0]], axis=0)
-            )
-        bg = np.max(bg_imgs, axis=0)
+        # Collect valid background images, skipping any None entries
+        for i in range(start, end - 1):  # -1 to not include current image
+            if i >= 0 and i < len(input.images) and input.images[i] is not None:
+                try:
+                    bg_imgs.append(input.images[i][0])
+                except (TypeError, IndexError):
+                    continue
         
-        correct_img = cv.absdiff(img, bg)
-        cleaned_img = cv.bitwise_not(correct_img)
-        bg_corr_img = cleaned_img
-        #fixing problem where very bright objects (plankton acts as lens?!) print through on following images: see mattermost board "Segmenter Problem: Durchdrucken großer/dunkler Objekte im MaxSegmenter"
-        #cleaned_img[np.where(cleaned_img >= 250)] = np.mean(bg) 
-        
-        output.put((bg_corr_img, cleaned_img, [mean,stdev], fn))
+        # Only attempt background correction if we have at least one valid background image
+        if len(bg_imgs) > 0:
+            bg = np.max(bg_imgs, axis=0)
+            correct_img = cv.absdiff(img, bg)
+            cleaned_img = cv.bitwise_not(correct_img)
+            bg_corr_img = cleaned_img
+            output.put((bg_corr_img, cleaned_img, [mean, stdev], fn))
+        else:
+            print(f'No valid background images available for image {img_index}: {fn}')
+            output.put(([], [], [mean, stdev], fn))
     else:
-        print('found corrupt image: ', fn)
-
-        output.put(([], [], [mean,stdev], fn))
+        print(f'Found corrupt image (low stdev): {fn}')
+        output.put(([], [], [mean, stdev], fn))
 
 
 def run_bg_correction(input: ReaderOutput, output: Queue, n_bg_imgs: int, running):

@@ -193,7 +193,7 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
             deconv_crop_path,
             mask_path,
             img_path,   #img_path: str
-            400,        #min_area_to_save: float
+            100,        #min_area_to_save: float
             10,        #min_area_to_segment: float
             1,          #n_sigma: float
             False,       #save_bb_image: bool
@@ -248,13 +248,13 @@ def run_segmenter(src_path: str, save_path: str, deconvolution: bool):
             if deconvolution:
                 Thread(
                     target=run_deconvolution,
-                    args=(bg_output_queue, deconv_output_queue, len(batch), 1), #last argument is deconv batch_size has to match with image batch size 
+                    args=(bg_output_queue, deconv_output_queue, len(batch), 10), #last argument is deconv batch_size has to match with image batch size 
                 ).start()
             else:
                 deconv_output_queue = bg_output_queue
             
             #print(len(batch))
-            n_cores = 8 #8 on Seavision
+            n_cores = 16 #8 on Seavision
 
             run_detection(deconv_output_queue, settings, n_cores, len(batch), detect_running)
 

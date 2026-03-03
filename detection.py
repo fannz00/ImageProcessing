@@ -273,8 +273,9 @@ def detect_on_img(input, settings: DetectionSettings, mask: np.ndarray, index=0)
             c += 1
 
         if settings.save_bb_image:
-            color = cv.resize(color, (1280, 1280))
-            cv.imwrite(os.path.join(settings.img_path, fn), color)
+            #color = cv.resize(color, (1280, 1280))
+            #cv.imwrite(os.path.join(settings.img_path, fn), color)
+            cv.imwrite(os.path.join(settings.img_path, fn), raw_bg_corr)
             
             #cleaned = cv.resize(cleaned, (512, 512))
             # Create a mask from the thresholded image

@@ -102,7 +102,10 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
     """
     
     def area_to_esd(area: float) -> float:
-        pixel_size = 13.5*2 #in µm/pixel @ 2560x2560 
+        pixel_size = 4.5 #in µm/pixel  
+        inv_magnification = 400/160  # magnification factor derived from lens system (essentially 1/magnification)
+        binning = 2  # binning factor @ 2560x2560 for GENIE XL 
+        pixel_size = pixel_size * inv_magnification * binning  # effective pixel size in µm 
         return 2 * np.sqrt(area * pixel_size**2 / np.pi)
 
     # Function to concatenate directory and filename
@@ -164,12 +167,12 @@ def gen_crop_df(path:str, small:bool, size_filter:int = 0, pressure_unit:str = '
     # Split the 'filename' column SO298_298-6-1_PISCO2_0009.82dbar-02.00S-089.00W-28.54C_20230418-18023076_13.png
     df['filename'] = df['filename'].astype(str)
     split_df = df['filename'].str.split('_', expand=True)
-    if small:# bug fix for segmenter where small objects are saved with _mask.png extension instead of .png: needs to be fixed if segmenter is fixed
-        headers = ["cruise", "dship_id", "instrument", "pressure", "mask_ext"]
-        split_df.columns = headers
-        split_df.drop("mask_ext", axis=1, inplace=True)
+    # if small:# bug fix for segmenter where small objects are saved with _mask.png extension instead of .png: needs to be fixed if segmenter is fixed
+    #     headers = ["cruise", "dship_id", "instrument", "pressure", "mask_ext"]
+    #     split_df.columns = headers
+    #     split_df.drop("mask_ext", axis=1, inplace=True)
     
-    elif cruise == "HE570":
+    if cruise == "HE570":
         headers = ["cruise", "dship_id", "instrument", "pressure", "date", "time", "index"]
         split_df.columns = headers
         # Reformat the 'date-time' column to match the expected format
@@ -1090,6 +1093,35 @@ def create_log_df(file_path, cruise = None):
                         temp_data['T1'] = float(temp_values[3])
                         temp_data['T2'] = float(temp_values[5])
                         temp_data['TH'] = float(temp_values[7])
+                        
+                elif line.startswith('Restart Tag'):
+                    temp_data['restart'] = True
+                    indicator = 0
+                elif line == 'Relock':
+                    temp_data['relock'] = True
+                    indicator = counter
+                    counter += 1
+                temp_data['TAG_event'] = indicator
+
+            elif cruise == 'SO298':
+                # Parse line according to message type
+                if line.startswith("b'TT"):
+                    temp_values = line[2:].rstrip("'").split('_')
+                    if len(temp_values) != 12: #adding this for debugging...
+                        logging.warning(
+                            f"Unexpected TT line format: {line}. "
+                            f"Parsing TT data: {temp_values}, "
+                            f"number of values: {len(temp_values)}"
+                        )
+                        logging.info(f"skipping line in file {file_path}: {line}")
+                        continue
+                    else:
+                        temp_data['TT'] = float(temp_values[1])
+                        temp_data['T1'] = float(temp_values[3])
+                        temp_data['T2'] = float(temp_values[5])
+                        temp_data['C1'] = float(temp_values[7])
+                        temp_data['C2'] = float(temp_values[9])
+                        temp_data['TH'] = float(temp_values[11])
                         
                 elif line.startswith('Restart Tag'):
                     temp_data['restart'] = True

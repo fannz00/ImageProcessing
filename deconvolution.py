@@ -1,3 +1,5 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 import cv2 as cv
 import torch
 import numpy as np
@@ -26,8 +28,13 @@ model_path = os.path.join(current_dir, 'models', MODEL_NAME)
 # Check if CUDA is available and load the model accordingly
 if torch.cuda.is_available():
     device = torch.device('cuda')
+    print("CUDA is available, using GPU.")
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs.")
+        #model = torch.nn.DataParallel(model)
 else:
     device = torch.device('cpu')
+    print("Warning! CUDA is not available, using CPU.")
 
 model.load_state_dict(torch.load(model_path, map_location=device))
 if torch.cuda.device_count() > 1:

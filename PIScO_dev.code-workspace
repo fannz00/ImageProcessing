@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../.."
+		},
+		{
+			"path": "../../../../media/veit/Data"
 		}
 	],
 	"settings": {}
